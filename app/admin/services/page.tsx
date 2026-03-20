@@ -1,11 +1,13 @@
 "use client";
-import React, { useState } from "react";
+
+import "react-quill/dist/quill.snow.css";
+import React, { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import axios from "axios";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
 import { toast } from "react-hot-toast";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
   FormControl,
@@ -14,227 +16,239 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
-import { FileUpload } from "@/components/ui/image-upload";
-import { Textarea } from "@/components/ui/textarea";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 
-type Props = {};
+const ReactQuill = dynamic(() => import("react-quill"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-40 border rounded-md bg-gray-50 flex items-center justify-center text-gray-400 text-sm">
+      Loading editor...
+    </div>
+  ),
+});
 
-interface ServiceProps{ 
-    initialData: any
+interface Service {
+  id: string;
+  title: string;
+  subtitle: string;
+  blog: string;
+  image: string;
+  slug?: string | null;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  metaKeywords?: string | null;
 }
 
 const formSchema = z.object({
-  title  :z.string().min(1, {
-    message: "Title is required"
-  }),
-  subtitle  :z.string().min(1, {
-    message: "subtitle is required"
-  }),
-  blog  :z.string().min(1, {
-    message: "blog is required"
-  }),
-  image  :z.string().min(1, {
-    message: "Image is required"
-  }),
-  slug: z.string().min(1, {
-    message: "Slug is required"
-  }),
-  metaTitle :  z.string().min(1, {
-    message: "metaTitle is required"
-  }),
-  metaDescription :  z.string().min(1, {
-    message: "metaDescription is required"
-  }),
-  metaKeywords :  z.string().min(1, {
-    message: "metaKeywords is required"
-  }),
+  title: z.string().min(1, { message: "Title is required" }),
+  slug: z.string().min(1, { message: "Slug is required" }),
+  subtitle: z.string().min(1, { message: "Subtitle is required" }),
+  blog: z.string().min(1, { message: "Content is required" }),
+  image: z.string().min(1, { message: "Image URL is required" }),
+  metaTitle: z.string().optional(),
+  metaDescription: z.string().optional(),
+  metaKeywords: z.string().optional(),
 });
 
-type AddYouTubeFormValues = z.infer<typeof formSchema>;
+type FormValues = z.infer<typeof formSchema>;
 
-const Services: React.FC<ServiceProps> = ({initialData}) => {
-  const [isLoading, setLoading] = useState(false);
+const quillModules = {
+  toolbar: [
+    [{ header: [1, 2, 3, false] }],
+    ["bold", "italic", "underline", "strike"],
+    [{ list: "ordered" }, { list: "bullet" }],
+    ["blockquote"],
+    ["link"],
+    ["clean"],
+  ],
+};
 
-  const router = useRouter();
+const ServicesAdminPage = () => {
+  const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const form = useForm<AddYouTubeFormValues>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: initialData || {
-        title: "",
-        subtitle: "",
-        blog: "",
-        image: "",
-        slug: "",
-        metaTitle: "",
-        metaDescription: "",
-        metaKeywords: "",
+    defaultValues: {
+      title: "",
+      slug: "",
+      subtitle: "",
+      blog: "",
+      image: "",
+      metaTitle: "",
+      metaDescription: "",
+      metaKeywords: "",
     },
   });
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    try {
-        setLoading(true);
-        if(initialData){
-            const res = await axios.put(`/api/services/${initialData.id}`, values);
-            console.log("res", res.data)
-            toast.success("Service updated successfully!");
-            router.push("/admin/services/manage");
-            return;
-        
-        }
-        else{
-            await axios.post("/api/services", values);
-            form.reset();
-            toast.success("Service added successfully!");
+  const watchedTitle = form.watch("title");
 
-        }
-      
-     
-      // Redirect or perform any other action after successful submission
-    } catch (error) {
-      console.error("Error adding services:", error);
-      toast.error("An error occurred. Please try again.");
+  useEffect(() => {
+    if (!editingId && watchedTitle) {
+      const slug = watchedTitle
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9-]/g, "");
+      form.setValue("slug", slug, { shouldValidate: false });
+    }
+  }, [watchedTitle, editingId, form]);
+
+  const fetchServices = useCallback(async () => {
+    try {
+      const res = await axios.get("/api/services");
+      setServices(res.data);
+    } catch {
+      toast.error("Failed to load services");
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchServices();
+  }, [fetchServices]);
+
+  const openAddForm = () => {
+    form.reset({
+      title: "",
+      slug: "",
+      subtitle: "",
+      blog: "",
+      image: "",
+      metaTitle: "",
+      metaDescription: "",
+      metaKeywords: "",
+    });
+    setEditingId(null);
+    setShowForm(true);
+  };
+
+  const openEditForm = (service: Service) => {
+    form.reset({
+      title: service.title,
+      slug: service.slug ?? "",
+      subtitle: service.subtitle,
+      blog: service.blog,
+      image: service.image,
+      metaTitle: service.metaTitle ?? "",
+      metaDescription: service.metaDescription ?? "",
+      metaKeywords: service.metaKeywords ?? "",
+    });
+    setEditingId(service.id);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this service?")) return;
+    try {
+      await axios.delete(`/api/services/${id}`);
+      toast.success("Service deleted");
+      fetchServices();
+    } catch {
+      toast.error("Failed to delete service");
+    }
+  };
+
+  const onSubmit = async (values: FormValues) => {
+    try {
+      setSubmitting(true);
+      if (editingId) {
+        await axios.put(`/api/services/${editingId}`, values);
+        toast.success("Service updated!");
+      } else {
+        await axios.post("/api/services", values);
+        toast.success("Service created!");
+      }
+      setShowForm(false);
+      setEditingId(null);
+      fetchServices();
+    } catch {
+      toast.error("An error occurred. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-5xl mx-auto">
-        {/* Header Section */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900">
-              {initialData ? "Edit Service" : "Add Service"}
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              {initialData ? "Update your service information" : "Add a new service to your website"}
-            </p>
-          </div>
-          <Button
-            variant="default"
-            onClick={() => router.push("/admin/services/manage")}
-            className="h-10"
-          >
-            Manage Services
-          </Button>
-        </div>
+    <div className="max-w-6xl mx-auto p-8">
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold">Services</h1>
+        <Button variant="primary" onClick={openAddForm}>
+          + Add Service
+        </Button>
+      </div>
 
-        {/* Main Form Section */}
-        <div className="bg-white rounded-xl shadow-sm border p-6">
+      {showForm && (
+        <div className="mb-10 p-6 border rounded-lg bg-white shadow">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">
+              {editingId ? "Edit Service" : "New Service"}
+            </h2>
+            <button
+              onClick={() => setShowForm(false)}
+              className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+            >
+              ×
+            </button>
+          </div>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              {/* Image Upload Section */}
-              <div className="space-y-6">
-                <div className="text-lg font-semibold text-primary border-b pb-2">
-                  Service Image
-                </div>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
-                  name="image"
+                  name="title"
                   render={({ field }) => (
                     <FormItem>
+                      <FormLabel>Title</FormLabel>
                       <FormControl>
-                        <FileUpload
-                          endpoint="galleryImage"
-                          value={field.value}
-                          onChange={field.onChange}
-                        />
+                        <Input placeholder="Service title" {...field} />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="slug"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Slug</FormLabel>
+                      <FormControl>
+                        <Input placeholder="auto-generated-slug" {...field} />
+                      </FormControl>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
 
-              {/* Basic Information */}
-              <div className="space-y-6">
-                <div className="text-lg font-semibold text-primary border-b pb-2">
-                  Basic Information
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <FormField
-                    control={form.control}
-                    name="title"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-medium">
-                          Title
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            disabled={isLoading}
-                            className="h-11"
-                            placeholder="Enter title"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="slug"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-medium">
-                          Slug
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            disabled={isLoading}
-                            className="h-11"
-                            placeholder="Enter slug"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
                   name="subtitle"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-sm font-medium">
-                        Subtitle
-                      </FormLabel>
+                      <FormLabel>Subtitle</FormLabel>
                       <FormControl>
-                        <Textarea
-                          disabled={isLoading}
-                          className="resize-none"
-                          placeholder="Enter subtitle"
-                          {...field}
-                          rows={3}
-                        />
+                        <Input placeholder="Short description" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
-                  name="blog"
+                  name="image"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-sm font-medium">
-                        Blog Content
-                      </FormLabel>
+                      <FormLabel>Image URL</FormLabel>
                       <FormControl>
-                        <Textarea
-                          disabled={isLoading}
-                          className="resize-none min-h-[200px]"
-                          placeholder="Enter blog content"
-                          {...field}
-                          rows={8}
-                        />
+                        <Input placeholder="https://..." {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -242,102 +256,155 @@ const Services: React.FC<ServiceProps> = ({initialData}) => {
                 />
               </div>
 
-              {/* SEO Information */}
-              <div className="space-y-6">
-                <div className="text-lg font-semibold text-primary border-b pb-2">
-                  SEO Information
-                </div>
-                <div className="grid grid-cols-1 gap-6">
+              <FormField
+                control={form.control}
+                name="blog"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Content</FormLabel>
+                    <FormControl>
+                      <ReactQuill
+                        theme="snow"
+                        value={field.value}
+                        onChange={field.onChange}
+                        modules={quillModules}
+                        className="bg-white"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="border-t pt-4">
+                <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">
+                  SEO
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <FormField
                     control={form.control}
                     name="metaTitle"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-sm font-medium">
-                          Meta Title
-                        </FormLabel>
+                        <FormLabel>Meta Title</FormLabel>
                         <FormControl>
-                          <Input
-                            disabled={isLoading}
-                            className="h-11"
-                            placeholder="Enter meta title"
-                            {...field}
-                          />
+                          <Input placeholder="SEO title" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
-                  <FormField
-                    control={form.control}
-                    name="metaDescription"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-medium">
-                          Meta Description
-                        </FormLabel>
-                        <FormControl>
-                          <Textarea
-                            disabled={isLoading}
-                            className="resize-none"
-                            placeholder="Enter meta description"
-                            {...field}
-                            rows={3}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
                   <FormField
                     control={form.control}
                     name="metaKeywords"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-sm font-medium">
-                          Meta Keywords
-                        </FormLabel>
+                        <FormLabel>Meta Keywords</FormLabel>
                         <FormControl>
-                          <Input
-                            disabled={isLoading}
-                            className="h-11"
-                            placeholder="Enter meta keywords (comma-separated)"
-                            {...field}
-                          />
+                          <Input placeholder="keyword1, keyword2" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
+                <FormField
+                  control={form.control}
+                  name="metaDescription"
+                  render={({ field }) => (
+                    <FormItem className="mt-4">
+                      <FormLabel>Meta Description</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="SEO description"
+                          rows={2}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
 
-              {/* Submit Button */}
-              <div className="flex items-center justify-end gap-4 pt-6 border-t">
+              <div className="flex gap-3">
+                <Button type="submit" variant="primary" disabled={submitting}>
+                  {submitting
+                    ? "Saving..."
+                    : editingId
+                    ? "Update Service"
+                    : "Create Service"}
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={isLoading}
-                  onClick={() => router.back()}
+                  onClick={() => setShowForm(false)}
                 >
                   Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={isLoading}
-                  className="bg-primary hover:bg-primary/90"
-                >
-                  {initialData ? "Update Service" : "Add Service"}
                 </Button>
               </div>
             </form>
           </Form>
         </div>
-      </div>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary" />
+        </div>
+      ) : services.length === 0 ? (
+        <p className="text-center text-gray-500 py-20">
+          No services yet. Click &quot;Add Service&quot; to get started.
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-gray-700 uppercase text-xs">
+              <tr>
+                <th className="px-4 py-3 text-left">Title</th>
+                <th className="px-4 py-3 text-left">Slug</th>
+                <th className="px-4 py-3 text-left">Subtitle</th>
+                <th className="px-4 py-3 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 bg-white">
+              {services.map((service) => (
+                <tr key={service.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium max-w-xs truncate">
+                    {service.title}
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 max-w-[180px] truncate">
+                    {service.slug || "—"}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600 max-w-xs truncate">
+                    {service.subtitle}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="text-xs px-3 py-1"
+                        onClick={() => openEditForm(service)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        className="text-xs px-3 py-1"
+                        onClick={() => handleDelete(service.id)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };
 
-export default Services;
+export default ServicesAdminPage;
