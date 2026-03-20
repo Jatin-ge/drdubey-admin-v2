@@ -1,0 +1,272 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+provider = "prisma-client-js"
+}
+
+datasource db {
+provider = "mongodb"
+url = env("DATABASE_URL")
+}
+
+enum GenderType {
+Male
+Female
+OTHER
+}
+
+model Lead {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+name String
+email String?
+phone String?
+age Int?
+remark String?
+address String?
+gender GenderType @default(Male)
+createdAt DateTime? @default(now())
+updatedAt DateTime? @updatedAt
+patientStatus String?
+doad DateTime?
+dood DateTime?
+dx String?
+surgery String?
+side String?
+implant String?
+ipdReg Int?
+bill Int?
+tpa String?
+payment Payments[]
+cities String?
+hospital String?
+}
+
+model Payments {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+name String
+userPaymentId String @db.ObjectId
+payment Lead @relation(fields: [userPaymentId], references: [id])
+amount Int
+mode PaymentMode
+createdAt DateTime @default(now())
+updateAt DateTime @updatedAt
+}
+
+enum LeadStatus {
+PENDING
+CONTACTED
+CONVERTED
+LOST
+}
+
+enum PaymentMode {
+CASH
+CARD
+UPI
+NETBANKING
+}
+
+model Profile {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+userId String @unique
+name String
+imageUrl String
+email String
+createdAt DateTime @default(now())
+updateAt DateTime @updatedAt
+appointments Appointment[]
+}
+
+model Appointment {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+userId String
+user Profile @relation(fields: [userId], references: [userId])
+name String
+date String
+time String
+phone String
+email String
+cityname String
+city Cities @relation(fields: [cityname], references: [name])
+age Int
+address String
+gender GenderType @default(Male)
+createdAt DateTime @default(now())
+updateAt DateTime @updatedAt
+description String?
+discussionTitle String?
+discussionDescription String?
+}
+
+// This is for the calendar management
+
+model Cities {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+name String @unique
+
+days Day[]
+closeddays ClosedDay[]
+appointments Appointment[]
+}
+
+model SurgeryTypes {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+name String @unique
+}
+
+model Day {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+cityname String
+city Cities @relation(fields: [cityname], references: [name])
+
+name String
+dayOfWeek Int // @see getDay() documentation, 0 for Sunday, 1 for Monday, ...
+openTime String
+closeTime String
+}
+
+model ClosedDay {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+cityname String
+city Cities @relation(fields: [cityname], references: [name])
+date DateTime
+}
+
+model ContactUs {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+name String
+email String
+message String
+createdAt DateTime @default(now())
+updateAt DateTime @updatedAt
+}
+
+model YouTube {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+link String
+createdAt DateTime @default(now())
+}
+
+model Services {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+title String
+subtitle String
+blog String
+image String
+slug String?
+metaTitle String?
+metaDescription String?
+metaKeywords String?
+}
+
+model AdminProfile {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+
+userName String
+password String
+}
+
+model Image {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+imageUrl String
+description String
+}
+model Blogs {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+title String
+slug String?
+subtitle1 String
+content1 String
+image1 String
+subtitle2 String?
+content2 String?
+image2 String?
+metaTitle String?
+metaDescription String?
+metaKeywords String?
+}
+
+enum TemplateCategory {
+MARKETING
+UTILITY
+AUTHENTICATION
+}
+
+enum TemplateStatus {
+PENDING
+APPROVED
+REJECTED
+}
+
+enum HeaderType {
+TEXT
+IMAGE
+VIDEO
+DOCUMENT
+NONE
+}
+
+enum ButtonType {
+QUICK_REPLY
+URL
+}
+
+model Template {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+name String @unique
+displayName String
+category TemplateCategory
+language String
+headerType String @default("NONE")
+headerContent String?
+bodyContent String
+footerContent String?
+buttons Button[]
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+}
+
+model Button {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+type String
+text String
+url String?
+order Int // Required field for button order
+template Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+templateId String @db.ObjectId
+}
+
+model TemplateMedia {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+url String
+type String // image/video/document
+filename String
+createdAt DateTime @default(now())
+}
+
+model City {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+name String @unique
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+}
+
+model Event {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+title String
+videoLink String? // Optional YouTube video link
+imageUrl String? // Optional image URL
+description String? // Make description optional by adding ?
+createdAt DateTime @default(now())
+}
+
+model MetaTemplate {
+id String @id @default(auto()) @map("_id") @db.ObjectId
+name String @unique // Template name from Meta console
+displayName String // User-friendly display name
+description String? // Optional description
+isActive Boolean @default(true)
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt
+}
