@@ -40,6 +40,11 @@ tpa String?
 payment Payments[]
 cities String?
 hospital String?
+
+  @@index([createdAt])
+  @@index([phone])
+  @@index([cities])
+  @@index([patientStatus])
 }
 
 model Payments {
@@ -97,6 +102,9 @@ updateAt DateTime @updatedAt
 description String?
 discussionTitle String?
 discussionDescription String?
+
+  @@index([date])
+  @@index([cityname])
 }
 
 // This is for the calendar management
@@ -185,6 +193,10 @@ image2 String?
 metaTitle String?
 metaDescription String?
 metaKeywords String?
+  isPublished   Boolean  @default(false)
+  publishedAt   DateTime?
+  coverImage    String?
+  tags          String[]
 }
 
 enum TemplateCategory {
@@ -259,6 +271,32 @@ videoLink String? // Optional YouTube video link
 imageUrl String? // Optional image URL
 description String? // Make description optional by adding ?
 createdAt DateTime @default(now())
+}
+
+model WhatsAppMessageLog {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  leadId     String?  @db.ObjectId
+  phone      String
+  templateId String   @db.ObjectId
+  variables  String[]
+  status     String
+  errorMsg   String?
+  sentAt     DateTime @default(now())
+}
+
+model Achievement {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  title           String
+  slug            String   @unique
+  category        String
+  date            DateTime
+  description     String
+  imageUrl        String
+  isFeatured      Boolean  @default(false)
+  featuredOrder   Int?
+  metaTitle       String?
+  metaDescription String?
+  createdAt       DateTime @default(now())
 }
 
 model MetaTemplate {
