@@ -5,16 +5,22 @@ import { db } from "@/lib/db";
 import { AppointMentCloumn } from "./components/column";
 import { BillboardClient } from "./components/client";
 
-const BillboardsPage = async ({ params }: { params: { storeId: string } }) => {
-  const appointments = await db.appointment.findMany({
-    include: {
-      user: true,
-    },
+export const dynamic = "force-dynamic";
 
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+const BillboardsPage = async ({ params }: { params: { storeId: string } }) => {
+  let appointments: any[] = [];
+  try {
+    appointments = await db.appointment.findMany({
+      include: {
+        user: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+  } catch {
+    appointments = [];
+  }
 
   const formattedAppointmentCloumn: AppointMentCloumn[] = appointments.map(
     (item) => ({

@@ -5,12 +5,19 @@ import { db } from "@/lib/db";
 import { LeadCloumn } from "./components/column";
 import { BillboardClient } from "./components/client";
 
+export const dynamic = "force-dynamic";
+
 const BillboardsPage = async ({ params }: { params: { storeId: string } }) => {
-  const billboards = await db.lead.findMany({
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+  let billboards: any[] = [];
+  try {
+    billboards = await db.lead.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+  } catch {
+    billboards = [];
+  }
 
  
 

@@ -3,9 +3,15 @@ import Navbar from "@/components/Navbar/navbar";
 import { YoutubePlayer } from "@/components/ui/video";
 import { db } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 const Youtube = async() => {
-    const youtube  = await db.youTube.findMany({
-    })
+    let youtube: any[] = [];
+    try {
+        youtube = await db.youTube.findMany({});
+    } catch {
+        youtube = [];
+    }
     return ( 
         <>
         <Navbar />
