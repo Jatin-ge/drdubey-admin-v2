@@ -1,11 +1,5 @@
-import Calendar from "@/components/Calendar/Calendar";
 import { db } from "@/lib/db";
-import React from "react";
-import { format, formatISO } from "date-fns";
 import { Day } from "@prisma/client";
-import { currentProfile } from "@/lib/current-profile";
-import { currentUser } from "@clerk/nextjs";
-import { redirect } from "next/navigation";
 import ClosingDate from "@/components/ClosingDate/ClosingDate";
 import EditableTable from "@/components/EditableTable/EditableTable";
 

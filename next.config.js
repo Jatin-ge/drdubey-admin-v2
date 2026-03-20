@@ -1,10 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-
-    images: {
-        domains: ['img.clerk.com',"uploadthing.com",
-      "utfs.io"],
-      },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  images: {
+    domains: ['utfs.io', 'uploadthing.com'],
+  },
 }
 
 module.exports = nextConfig

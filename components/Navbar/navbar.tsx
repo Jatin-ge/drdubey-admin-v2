@@ -3,7 +3,7 @@ import Link from "next/link";
 import ThemeChanger from "./DarkSwitch";
 import Image from "next/image";
 import { Disclosure } from "@headlessui/react";
-import { UserButton } from "@clerk/nextjs";
+import { SignOutButton } from "@/components/Navbar/SignOutButton";
 
 const Navbar = () => {
   return (
@@ -168,7 +168,7 @@ const Navbar = () => {
         </div>
 
         <div className="hidden mr-3 space-x-4 lg:flex nav__item text-[#EE8A27]">
-          <UserButton afterSignOutUrl="/" />
+          <SignOutButton />
           <ThemeChanger />
         </div>
       </nav>
