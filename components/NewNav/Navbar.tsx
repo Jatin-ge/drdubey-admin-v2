@@ -2,8 +2,6 @@ import Link from "next/link";
 import React, { useState, useEffect } from "react";
 import { AiOutlineMenu, AiOutlineClose } from "react-icons/ai";
 import ThemeChanger from "./DarkSwitch";
-import { UserButton } from "@clerk/nextjs";
-
 import Image from "next/image";
 
 const Navbar = () => {
@@ -63,9 +61,6 @@ const Navbar = () => {
           </li>
           <li className="p-4 hover:text-primary">
             <Link href="/youtube">Youtube</Link>
-          </li>
-          <li className="p-4 hover:text-primary">
-            <UserButton afterSignOutUrl="/" />
           </li>
           <li className="p-4 hover:text-primary mb-1">
             <ThemeChanger />

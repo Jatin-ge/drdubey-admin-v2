@@ -1,6 +1,5 @@
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { db } from "@/lib/db";
-import { User } from "@clerk/nextjs/server";
 import { format } from "date-fns";
 import Link from "next/link";
 

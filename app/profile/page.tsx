@@ -41,9 +41,9 @@ const Page = async () => {
       {appointments.length > 0 ? (
         <>
           <ProfileCard
-            name={appointments[0] ? appointments[0].name : name}
-            imageUrl={imageUrl}
-            email={email}
+            name={appointments[0] ? appointments[0].name : (name ?? '')}
+            imageUrl={imageUrl ?? ''}
+            email={email ?? ''}
             appointments={appointments}
             phone={phone}
           />

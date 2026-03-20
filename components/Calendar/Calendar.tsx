@@ -18,7 +18,6 @@ import { useRouter } from "next/navigation";
 import { getOpeningTimes, roundToNearestMinutes } from "@/utils/helper";
 import { Day } from "@prisma/client";
 import { useModal } from "@/hooks/use-modal-store";
-import { currentUser } from "@clerk/nextjs";
 import qs from "query-string";
 
 type DateTime = {

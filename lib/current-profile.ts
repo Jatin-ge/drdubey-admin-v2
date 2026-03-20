@@ -6,6 +6,7 @@ export const currentProfile = async () => {
   if (!session) return null
   return {
     ...session.user,
-    userId: session.user?.id ?? '',
+    userId: (session.user as any)?.id ?? '',
+    imageUrl: session.user?.image ?? null,
   }
 }

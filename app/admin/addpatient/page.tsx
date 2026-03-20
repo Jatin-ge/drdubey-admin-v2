@@ -127,6 +127,8 @@ const Addpatient: React.FC<AddpatientProps> = ({ initialData, type }) => {
 
   const Side = ["LEFT", "RIGHT", "BOTH"];
 
+  const [inputValue, setInputValue] = useState("");
+
   const form = useForm<AddpatientFormValues>({
     resolver: zodResolver(formSchema),
     // @ts-ignore
@@ -454,8 +456,6 @@ const Addpatient: React.FC<AddpatientProps> = ({ initialData, type }) => {
                     control={form.control}
                     name="cities"
                     render={({ field }) => {
-                      const [inputValue, setInputValue] = React.useState("");
-
                       return (
                         <FormItem className="flex flex-col">
                           <FormLabel className="text-sm font-medium">
@@ -830,10 +830,6 @@ const Addpatient: React.FC<AddpatientProps> = ({ initialData, type }) => {
                   control={form.control}
                   name="hospital"
                   render={({ field }) => {
-                    const [showOtherHospital, setShowOtherHospital] = useState(
-                      field.value === "Other"
-                    );
-
                     return (
                       <FormItem>
                         <FormLabel>Hospital</FormLabel>
@@ -841,7 +837,6 @@ const Addpatient: React.FC<AddpatientProps> = ({ initialData, type }) => {
                           disabled={isLoading}
                           onValueChange={(value) => {
                             field.onChange(value);
-                            setShowOtherHospital(value === "Other");
                             if (value !== "Other") {
                               form.setValue("otherHospital", "");
                             }

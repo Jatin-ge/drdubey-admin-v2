@@ -27,7 +27,7 @@ const BillboardPage = async () => {
       <div className="flex-1 space-y-4 p-8 pt-6">
         {
           appointments.length === 0 ? (
-            <Appointment name={profile.name} email={profile.email} userId={profile.userId}/>
+            <Appointment name={profile.name ?? ''} email={profile.email ?? ''} userId={profile.userId}/>
           ): (<PreviousAppointment appointments = {appointments}/>)
         }
         
