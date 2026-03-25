@@ -7,12 +7,16 @@ import {
   LayoutDashboard,
   Users,
   Calendar,
+  CalendarDays,
   MapPin,
   Youtube,
   Image as ImageIcon,
   Trophy,
   Wrench,
   FileText,
+  Bell,
+  Receipt,
+  Ticket,
   LogOut,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -49,6 +53,30 @@ export function MainNav({
       label: "Appointments",
       icon: <Calendar className="h-4 w-4" />,
       active: pathname === `/admin/appointment`,
+    },
+    {
+      href: `/admin/calendar`,
+      label: "Calendar",
+      icon: <CalendarDays className="h-4 w-4" />,
+      active: pathname === `/admin/calendar`,
+    },
+    {
+      href: `/admin/tokens`,
+      label: "OPD Tokens",
+      icon: <Ticket className="h-4 w-4" />,
+      active: pathname === `/admin/tokens`,
+    },
+    {
+      href: `/admin/followups`,
+      label: "Follow-Ups",
+      icon: <Bell className="h-4 w-4" />,
+      active: pathname === `/admin/followups`,
+    },
+    {
+      href: `/admin/billing`,
+      label: "Billing",
+      icon: <Receipt className="h-4 w-4" />,
+      active: pathname === `/admin/billing`,
     },
     {
       href: `/admin/closeddate/jaipur`,

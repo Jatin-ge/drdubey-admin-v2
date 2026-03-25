@@ -9,6 +9,8 @@ interface DashboardStats {
   totalBlogs: number;
   publishedBlogs: number;
   totalAchievements: number;
+  followUpsDueToday: number;
+  overdueFollowUps: number;
   recentContacts: any[];
   recentPatients: any[];
 }
@@ -20,6 +22,8 @@ export default function NewDashboard() {
     totalBlogs: 0,
     publishedBlogs: 0,
     totalAchievements: 0,
+    followUpsDueToday: 0,
+    overdueFollowUps: 0,
     recentContacts: [],
     recentPatients: [],
   });
@@ -64,6 +68,13 @@ export default function NewDashboard() {
       bg: "bg-orange-50",
       border: "border-orange-200",
     },
+    {
+      label: "Follow-Ups Due Today",
+      value: stats.followUpsDueToday.toString(),
+      color: "text-red-600",
+      bg: "bg-red-50",
+      border: "border-red-200",
+    },
   ];
 
   if (loading) {
@@ -77,7 +88,7 @@ export default function NewDashboard() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         {statCards.map((card) => (
           <div
             key={card.label}
@@ -120,6 +131,24 @@ export default function NewDashboard() {
             className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
           >
             View Appointments
+          </Link>
+          <Link
+            href="/admin/tokens"
+            className="px-4 py-2 bg-cyan-600 text-white rounded-lg text-sm font-medium hover:bg-cyan-700 transition-colors"
+          >
+            OPD Tokens
+          </Link>
+          <Link
+            href="/admin/followups"
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+          >
+            Follow-Ups {stats.overdueFollowUps > 0 ? `(${stats.overdueFollowUps})` : ""}
+          </Link>
+          <Link
+            href="/admin/billing"
+            className="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors"
+          >
+            Billing
           </Link>
         </div>
       </div>

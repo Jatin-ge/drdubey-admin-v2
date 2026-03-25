@@ -40,6 +40,11 @@ tpa String?
 payment Payments[]
 cities String?
 hospital String?
+referralDoctorId String?  @db.ObjectId
+referralDoctor   ReferralDoctor? @relation("ReferredBy", fields: [referralDoctorId], references: [id])
+billing          BillingRecord[] @relation("PatientBilling")
+followUps        FollowUp[]      @relation("PatientFollowUps")
+nextVisitDate    DateTime?
 
   @@index([createdAt])
   @@index([phone])
@@ -307,4 +312,73 @@ description String? // Optional description
 isActive Boolean @default(true)
 createdAt DateTime @default(now())
 updatedAt DateTime @updatedAt
+}
+
+model ReferralDoctor {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  phone     String?
+  specialty String?
+  hospital  String?
+  city      String?
+  email     String?
+  notes     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  leads     Lead[]   @relation("ReferredBy")
+}
+
+model BillingRecord {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  leadId          String   @db.ObjectId
+  lead            Lead     @relation("PatientBilling", fields: [leadId], references: [id])
+  invoiceNumber   String   @unique
+  surgeonFee      Int?
+  hospitalCharges Int?
+  implantCost     Int?
+  anaesthesiaFee  Int?
+  otherCharges    Int?
+  totalAmount     Int
+  amountPaid      Int      @default(0)
+  amountDue       Int      @default(0)
+  paymentMode     String?
+  tpaName         String?
+  tpaClaimNumber  String?
+  tpaStatus       String?  @default("PENDING")
+  insuranceAmount Int?
+  notes           String?
+  invoiceDate     DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model OpdToken {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  tokenNumber  Int
+  date         String
+  patientName  String
+  patientPhone String?
+  leadId       String?   @db.ObjectId
+  city         String?
+  status       String    @default("WAITING")
+  calledAt     DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  @@index([date])
+  @@index([status])
+}
+
+model FollowUp {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  leadId      String    @db.ObjectId
+  lead        Lead      @relation("PatientFollowUps", fields: [leadId], references: [id])
+  dueDate     DateTime
+  type        String
+  status      String    @default("PENDING")
+  notes       String?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  @@index([dueDate])
+  @@index([status])
 }

@@ -8,12 +8,19 @@ export async function GET() {
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
     const [
       totalPatients,
       thisWeekPatients,
       totalBlogs,
       publishedBlogs,
       totalAchievements,
+      followUpsDueToday,
+      overdueFollowUps,
       recentContacts,
       recentPatients,
     ] = await Promise.all([
@@ -24,6 +31,12 @@ export async function GET() {
       db.blogs.count(),
       db.blogs.count({ where: { isPublished: true } }),
       db.achievement.count(),
+      db.followUp.count({
+        where: { dueDate: { gte: todayStart, lte: todayEnd }, status: "PENDING" },
+      }),
+      db.followUp.count({
+        where: { dueDate: { lte: new Date() }, status: "PENDING" },
+      }),
       db.contactUs.findMany({
         orderBy: { createdAt: "desc" },
         take: 5,
@@ -48,6 +61,8 @@ export async function GET() {
       totalBlogs,
       publishedBlogs,
       totalAchievements,
+      followUpsDueToday,
+      overdueFollowUps,
       recentContacts,
       recentPatients,
     });
@@ -59,6 +74,8 @@ export async function GET() {
       totalBlogs: 0,
       publishedBlogs: 0,
       totalAchievements: 0,
+      followUpsDueToday: 0,
+      overdueFollowUps: 0,
       recentContacts: [],
       recentPatients: [],
     });
