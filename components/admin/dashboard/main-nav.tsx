@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { 
-  LayoutDashboard, 
-  Users, 
-  Calendar, 
-  MapPin, 
-  Youtube, 
+import {
+  LayoutDashboard,
+  Users,
+  Calendar,
+  MapPin,
+  Youtube,
   Image as ImageIcon,
+  Trophy,
   Wrench,
   FileText,
   LogOut,
@@ -66,6 +67,12 @@ export function MainNav({
       label: "Gallery",
       icon: <ImageIcon className="h-4 w-4" />,
       active: pathname === `/admin/manage_image`,
+    },
+    {
+      href: `/admin/achievements`,
+      label: "Achievements",
+      icon: <Trophy className="h-4 w-4" />,
+      active: pathname === `/admin/achievements`,
     },
     {
       href: `/admin/services`,
