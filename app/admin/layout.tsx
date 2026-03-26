@@ -1,14 +1,18 @@
-import Navbar from "@/components/admin/dashboard/navabar";
+"use client";
 
-export default async function DashboardLayout({
+import AdminNav from "@/components/admin/AdminNav";
+
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <>
-      <Navbar />
-      {children}
-    </>
+    <div style={{ display: "flex", minHeight: "100vh" }}>
+      <AdminNav />
+      <main style={{ flex: 1, backgroundColor: "#f8fafc", overflowY: "auto" }}>
+        {children}
+      </main>
+    </div>
   );
 }
