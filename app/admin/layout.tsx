@@ -1,6 +1,7 @@
 "use client";
 
-import AdminNav from "@/components/admin/AdminNav";
+import AdminLayout from "@/components/admin/layout/AdminLayout";
+import PageTransition from "@/components/admin/layout/PageTransition";
 
 export default function DashboardLayout({
   children,
@@ -8,11 +9,8 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      <AdminNav />
-      <main style={{ flex: 1, backgroundColor: "#f8fafc", overflowY: "auto" }}>
-        {children}
-      </main>
-    </div>
+    <AdminLayout>
+      <PageTransition>{children}</PageTransition>
+    </AdminLayout>
   );
 }

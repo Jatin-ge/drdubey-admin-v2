@@ -1,14 +1,7 @@
-import { DashboardPage } from "@/components/admin/dashboard/dashboard";
-import DashboardToggle from "@/components/admin/dashboard/DashboardToggle";
+"use client";
 
-export const dynamic = "force-dynamic";
+import NewDashboard from "@/components/admin/dashboard/NewDashboard";
 
-const AdminPage = async () => {
-  return (
-    <DashboardToggle>
-      <DashboardPage />
-    </DashboardToggle>
-  );
-};
-
-export default AdminPage;
+export default function DashboardPage() {
+  return <NewDashboard />;
+}
