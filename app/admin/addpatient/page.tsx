@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import PatientSuggest from "@/components/admin/patients/PatientSuggest";
 import { redirect, useParams, useRouter } from "next/navigation";
 import { useModal } from "@/hooks/use-modal-store";
 import {
@@ -307,11 +308,11 @@ const Addpatient: React.FC<AddpatientProps> = ({ initialData, type }) => {
                           Patient Name <span className="text-red-500">*</span>
                         </FormLabel>
                         <FormControl>
-                          <Input
-                            disabled={isLoading}
-                            className="h-11"
-                            placeholder="Enter patient name"
-                            {...field}
+                          <PatientSuggest
+                            value={field.value}
+                            onChange={field.onChange}
+                            field="name"
+                            placeholder="Type patient name..."
                           />
                         </FormControl>
                         <FormMessage />
@@ -388,11 +389,11 @@ const Addpatient: React.FC<AddpatientProps> = ({ initialData, type }) => {
                           Phone Number <span className="text-red-500">*</span>
                         </FormLabel>
                         <FormControl>
-                          <Input
-                            disabled={isLoading}
-                            className="h-11 bg-white border-gray-200 focus-visible:ring-1 focus-visible:ring-primary"
-                            placeholder="Enter phone number"
-                            {...field}
+                          <PatientSuggest
+                            value={field.value}
+                            onChange={field.onChange}
+                            field="phone"
+                            placeholder="Type phone number..."
                           />
                         </FormControl>
                         <FormMessage />
