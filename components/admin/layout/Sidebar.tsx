@@ -24,6 +24,7 @@ import {
   Kanban,
   Send,
   MessageSquare,
+  MessageCircle,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -69,6 +70,7 @@ const NAV_GROUPS = [
     id: "comms",
     label: "Communication",
     items: [
+      { label: "WhatsApp", href: "/admin/whatsapp", icon: MessageCircle },
       { label: "Contact Forms", href: "/admin/contact", icon: Mail },
       { label: "Campaigns", href: "/admin/campaigns", icon: Send },
       { label: "WA Templates", href: "/admin/wa-templates", icon: MessageSquare },
