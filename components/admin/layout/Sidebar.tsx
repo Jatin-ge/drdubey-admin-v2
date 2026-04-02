@@ -23,7 +23,6 @@ import {
   LogOut,
   Kanban,
   Send,
-  MessageSquare,
   MessageCircle,
 } from "lucide-react";
 
@@ -71,9 +70,9 @@ const NAV_GROUPS = [
     label: "Communication",
     items: [
       { label: "WhatsApp", href: "/admin/whatsapp", icon: MessageCircle },
-      { label: "Contact Forms", href: "/admin/contact", icon: Mail },
+      { label: "Templates", href: "/admin/wa-templates", icon: FileText },
       { label: "Campaigns", href: "/admin/campaigns", icon: Send },
-      { label: "WA Templates", href: "/admin/wa-templates", icon: MessageSquare },
+      { label: "Contact Forms", href: "/admin/contact", icon: Mail },
     ],
   },
 ];
