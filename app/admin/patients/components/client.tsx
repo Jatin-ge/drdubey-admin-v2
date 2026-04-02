@@ -40,12 +40,84 @@ export const BillboardClient: React.FC<BillboardClientProps> = ({
   const tableRef = useRef<DataTableRef<LeadCloumn>>(null);
   const { onOpen } = useModal();
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedCount, setSelectedCount] =useState(0);
+  const [selectedCount, setSelectedCount] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [waTemplates, setWaTemplates] = useState<any[]>([]);
+  const [campaignForm, setCampaignForm] = useState({
+    name: '',
+    templateId: '',
+    language: 'hi' as 'hi' | 'en',
+    city: '',
+    date: '',
+    time: '09:00',
+  });
+  const [schedulingCampaign, setSchedulingCampaign] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  const openScheduleModal = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const selectedData = tableRef.current?.getSelectedData() || [];
+    const firstCity = selectedData[0]?.city || '';
+    setCampaignForm({
+      name: `Campaign - ${firstCity || 'Patients'} - ${today}`,
+      templateId: '',
+      language: 'hi',
+      city: firstCity,
+      date: today,
+      time: '09:00',
+    });
+    fetch('/api/wa-templates')
+      .then(r => r.json())
+      .then(d => setWaTemplates(Array.isArray(d) ? d : []))
+      .catch(() => {});
+    setShowScheduleModal(true);
+  };
+
+  const scheduleCampaign = async () => {
+    const selectedData = tableRef.current?.getSelectedData() || [];
+    if (!campaignForm.templateId) {
+      alert('Please select a template');
+      return;
+    }
+    if (!campaignForm.date) {
+      alert('Please select a date');
+      return;
+    }
+    setSchedulingCampaign(true);
+    try {
+      // Convert IST to UTC (IST = UTC + 5:30)
+      const istDateTime = new Date(`${campaignForm.date}T${campaignForm.time}:00`);
+      const utcDateTime = new Date(istDateTime.getTime() - (5.5 * 60 * 60 * 1000));
+      const res = await fetch('/api/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: campaignForm.name,
+          templateId: campaignForm.templateId,
+          language: campaignForm.language,
+          city: campaignForm.city,
+          patientIds: selectedData.map(p => p.id),
+          scheduledAt: utcDateTime.toISOString(),
+        }),
+      });
+      if (res.ok) {
+        alert(`Campaign scheduled for ${selectedData.length} patients on ${campaignForm.date} at ${campaignForm.time} IST`);
+        setShowScheduleModal(false);
+      } else {
+        alert('Failed to schedule campaign');
+      }
+    } catch {
+      alert('Failed to schedule campaign');
+    } finally {
+      setSchedulingCampaign(false);
+    }
+  };
+
+  const selectedTemplate = waTemplates.find(t => t.id === campaignForm.templateId);
 
   useEffect(() => {
     const count = tableRef.current?.getSelectedData()?.length || 0;
@@ -257,9 +329,9 @@ export const BillboardClient: React.FC<BillboardClientProps> = ({
         </div>
       </div>
       <Separator />
-      <DataTable 
+      <DataTable
         ref={tableRef}
-        columns={columns} 
+        columns={columns}
         data={data}
         onSelectionChange={(count: number) => setSelectedCount(count)}
         enableFiltering={true}
@@ -295,6 +367,285 @@ export const BillboardClient: React.FC<BillboardClientProps> = ({
           }
         ]}
       />
+
+      {/* Sticky selection action bar */}
+      {selectedCount > 0 && (
+        <div style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: '#0f172a',
+          padding: '14px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          zIndex: 100,
+          borderTop: '2px solid #2563eb',
+        }}>
+          <span style={{ color: 'white', fontSize: '14px', fontWeight: '500' }}>
+            {selectedCount} patients selected
+          </span>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              onClick={() => {
+                // Deselect by reloading — DataTableRef has no clearSelection
+                window.location.reload()
+              }}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '7px',
+                border: '1px solid rgba(255,255,255,0.2)',
+                backgroundColor: 'transparent',
+                color: 'white',
+                fontSize: '13px',
+                cursor: 'pointer',
+              }}
+            >
+              Clear selection
+            </button>
+            <button
+              onClick={openScheduleModal}
+              style={{
+                padding: '8px 20px',
+                borderRadius: '7px',
+                border: 'none',
+                backgroundColor: '#25D366',
+                color: 'white',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              📅 Schedule WhatsApp Campaign
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Campaign Modal */}
+      {showScheduleModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          zIndex: 200,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '24px',
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '14px',
+            padding: '28px',
+            width: '100%',
+            maxWidth: '560px',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#0f172a' }}>
+                Schedule WhatsApp Campaign
+              </h2>
+              <button
+                onClick={() => setShowScheduleModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{
+              backgroundColor: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              borderRadius: '8px',
+              padding: '10px 14px',
+              marginBottom: '20px',
+              fontSize: '13px',
+              color: '#15803d',
+            }}>
+              📋 Sending to {selectedCount} selected patients
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', color: '#374151', marginBottom: '5px' }}>
+                  Campaign Name
+                </label>
+                <input
+                  value={campaignForm.name}
+                  onChange={e => setCampaignForm(f => ({ ...f, name: e.target.value }))}
+                  style={{
+                    width: '100%', padding: '9px 12px', borderRadius: '7px',
+                    border: '1px solid #e2e8f0', fontSize: '14px', boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', color: '#374151', marginBottom: '5px' }}>
+                  City (for context)
+                </label>
+                <input
+                  value={campaignForm.city}
+                  onChange={e => setCampaignForm(f => ({ ...f, city: e.target.value }))}
+                  style={{
+                    width: '100%', padding: '9px 12px', borderRadius: '7px',
+                    border: '1px solid #e2e8f0', fontSize: '14px', boxSizing: 'border-box',
+                  }}
+                  placeholder="e.g. Bikaner"
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', color: '#374151', marginBottom: '5px' }}>
+                  Template *
+                </label>
+                <select
+                  value={campaignForm.templateId}
+                  onChange={e => setCampaignForm(f => ({ ...f, templateId: e.target.value }))}
+                  style={{
+                    width: '100%', padding: '9px 12px', borderRadius: '7px',
+                    border: '1px solid #e2e8f0', fontSize: '14px',
+                  }}
+                >
+                  <option value="">Select a template...</option>
+                  {waTemplates.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}{t.nameHi ? ` / ${t.nameHi}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', color: '#374151', marginBottom: '5px' }}>
+                  Language
+                </label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {(['hi', 'en'] as const).map(lang => (
+                    <button
+                      key={lang}
+                      onClick={() => setCampaignForm(f => ({ ...f, language: lang }))}
+                      style={{
+                        padding: '7px 18px',
+                        borderRadius: '6px',
+                        border: '1px solid #e2e8f0',
+                        backgroundColor: campaignForm.language === lang ? '#2563eb' : 'white',
+                        color: campaignForm.language === lang ? 'white' : '#374151',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {lang === 'hi' ? '🇮🇳 Hindi' : '🇬🇧 English'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Template Preview */}
+              {selectedTemplate && (
+                <div style={{
+                  backgroundColor: '#f8fafc',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  border: '1px solid #e2e8f0',
+                }}>
+                  <p style={{ fontSize: '11px', fontWeight: '600', color: '#64748b', marginBottom: '8px', textTransform: 'uppercase' }}>
+                    Preview
+                  </p>
+                  <div style={{
+                    backgroundColor: '#dcf8c6',
+                    borderRadius: '8px 8px 2px 8px',
+                    padding: '10px 12px',
+                    fontSize: '12px',
+                    lineHeight: '1.6',
+                    whiteSpace: 'pre-wrap',
+                    color: '#1a1a1a',
+                    maxHeight: '120px',
+                    overflowY: 'auto',
+                  }}>
+                    {campaignForm.language === 'hi'
+                      ? selectedTemplate.bodyHi?.replace('{{1}}', 'Patient Name')?.replace('{{2}}', campaignForm.city || 'City')
+                      : selectedTemplate.bodyEn?.replace('{{1}}', 'Patient Name')?.replace('{{2}}', campaignForm.city || 'City')
+                    }
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', color: '#374151', marginBottom: '5px' }}>
+                    Date (IST) *
+                  </label>
+                  <input
+                    type="date"
+                    value={campaignForm.date}
+                    onChange={e => setCampaignForm(f => ({ ...f, date: e.target.value }))}
+                    style={{
+                      width: '100%', padding: '9px 12px', borderRadius: '7px',
+                      border: '1px solid #e2e8f0', fontSize: '14px', boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', color: '#374151', marginBottom: '5px' }}>
+                    Time (IST) *
+                  </label>
+                  <input
+                    type="time"
+                    value={campaignForm.time}
+                    onChange={e => setCampaignForm(f => ({ ...f, time: e.target.value }))}
+                    style={{
+                      width: '100%', padding: '9px 12px', borderRadius: '7px',
+                      border: '1px solid #e2e8f0', fontSize: '14px', boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
+              <button
+                onClick={scheduleCampaign}
+                disabled={schedulingCampaign}
+                style={{
+                  flex: 1,
+                  backgroundColor: '#25D366',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: schedulingCampaign ? 'not-allowed' : 'pointer',
+                  opacity: schedulingCampaign ? 0.7 : 1,
+                }}
+              >
+                {schedulingCampaign ? 'Scheduling...' : `Schedule for ${selectedCount} patients`}
+              </button>
+              <button
+                onClick={() => setShowScheduleModal(false)}
+                style={{
+                  padding: '12px 20px',
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0',
+                  backgroundColor: 'white',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  color: '#374151',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

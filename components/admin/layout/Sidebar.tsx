@@ -21,6 +21,9 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  Kanban,
+  Send,
+  MessageSquare,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -47,6 +50,7 @@ const NAV_GROUPS = [
       { label: "OPD Tokens", href: "/admin/tokens", icon: Ticket },
       { label: "Billing", href: "/admin/billing", icon: Receipt },
       { label: "Referrals", href: "/admin/referrals", icon: UserCheck },
+      { label: "Pipeline", href: "/admin/pipeline", icon: Kanban },
     ],
   },
   {
@@ -66,6 +70,8 @@ const NAV_GROUPS = [
     label: "Communication",
     items: [
       { label: "Contact Forms", href: "/admin/contact", icon: Mail },
+      { label: "Campaigns", href: "/admin/campaigns", icon: Send },
+      { label: "WA Templates", href: "/admin/wa-templates", icon: MessageSquare },
     ],
   },
 ];

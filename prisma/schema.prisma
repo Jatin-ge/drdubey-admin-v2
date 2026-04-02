@@ -45,6 +45,7 @@ referralDoctor   ReferralDoctor? @relation("ReferredBy", fields: [referralDoctor
 billing          BillingRecord[] @relation("PatientBilling")
 followUps        FollowUp[]      @relation("PatientFollowUps")
 nextVisitDate    DateTime?
+pipelineStage    String?
 
   @@index([createdAt])
   @@index([phone])
@@ -381,4 +382,62 @@ model FollowUp {
   createdAt   DateTime  @default(now())
   @@index([dueDate])
   @@index([status])
+}
+
+model Campaign {
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  templateId    String        @db.ObjectId
+  language      String        @default("hi")
+  city          String
+  patientIds    String[]
+  patientCount  Int           @default(0)
+  status        String        @default("SCHEDULED")
+  scheduledAt   DateTime
+  sentAt        DateTime?
+  sentCount     Int           @default(0)
+  failedCount   Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  logs          CampaignLog[]
+}
+
+model CampaignLog {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  campaignId  String    @db.ObjectId
+  campaign    Campaign  @relation(fields: [campaignId], references: [id])
+  patientId   String
+  patientName String
+  phone       String
+  status      String    @default("PENDING")
+  sentAt      DateTime?
+  error       String?
+  createdAt   DateTime  @default(now())
+}
+
+model WhatsAppTemplate {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  nameHi      String?
+  category    String
+  language    String   @default("hi")
+  bodyEn      String
+  bodyHi      String
+  variables   String[]
+  metaName    String?
+  isApproved  Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ScheduledJob {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  type        String
+  referenceId String?
+  scheduledAt DateTime
+  status      String   @default("PENDING")
+  runAt       DateTime?
+  error       String?
+  createdAt   DateTime @default(now())
 }
