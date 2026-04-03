@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,8 +74,9 @@ const AchievementsAdminPage = () => {
 
   const fetchAchievements = async () => {
     try {
-      const res = await axios.get("/api/achievements");
-      setAchievements(res.data);
+      const res = await fetch("/api/achievements");
+      const data = await res.json();
+      setAchievements(Array.isArray(data) ? data : []);
     } catch {
       toast.error("Failed to load achievements");
     } finally {
@@ -123,7 +123,12 @@ const AchievementsAdminPage = () => {
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this achievement?")) return;
     try {
-      await axios.delete(`/api/achievements/${id}`);
+      const res = await fetch(`/api/achievements/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to delete achievement');
+        return;
+      }
       toast.success("Achievement deleted");
       fetchAchievements();
     } catch {
@@ -141,18 +146,37 @@ const AchievementsAdminPage = () => {
       };
 
       if (editingId) {
-        await axios.put(`/api/achievements/${editingId}`, payload);
+        const res = await fetch(`/api/achievements/${editingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error || 'Failed to update achievement');
+          return;
+        }
         toast.success("Achievement updated!");
       } else {
-        await axios.post("/api/achievements", payload);
+        const res = await fetch('/api/achievements', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error || 'Failed to create achievement');
+          return;
+        }
         toast.success("Achievement created!");
       }
 
       setShowForm(false);
       setEditingId(null);
       fetchAchievements();
-    } catch (error) {
-      toast.error("An error occurred. Please try again.");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'An error occurred. Please try again.';
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
