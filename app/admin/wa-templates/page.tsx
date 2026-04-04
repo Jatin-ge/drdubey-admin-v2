@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import toast, { Toaster } from 'react-hot-toast'
 
 interface WATemplate {
   id: string
@@ -617,12 +618,18 @@ export default function WATemplatesPage() {
       : '/api/wa-templates'
     const method = editingTemplate ? 'PUT' : 'POST'
 
-    await fetch(url, {
+    const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     })
+    const result = await res.json()
+    if (!res.ok) {
+      alert(result.error || 'Failed to save template')
+      return
+    }
 
+    toast.success('Template saved successfully')
     setShowForm(false)
     setEditingTemplate(null)
     await fetchTemplates()
@@ -647,6 +654,7 @@ export default function WATemplatesPage() {
 
   return (
     <div style={{ padding: '24px', maxWidth: '1000px' }}>
+      <Toaster position="top-right" />
       {/* Header */}
       <div style={{
         display: 'flex',

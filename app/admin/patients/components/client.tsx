@@ -1,11 +1,8 @@
 "use client";
-import { Plus, FileDown, Eye } from "lucide-react";
+import { FileDown } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import * as XLSX from 'xlsx';
-import dynamic from 'next/dynamic';
 import AddIcon from '@mui/icons-material/Add';
-import WhatsAppIcon from '@mui/icons-material/WhatsApp';
-import TemplateIcon from '@mui/icons-material/Description';
 import { Button as MuiButton } from '@mui/material';
 import { Button } from "@/components/ui/button";
 
@@ -27,6 +24,151 @@ import { DataTable, DataTableRef } from "@/components/ui/data-table";
 import { useModal } from "@/hooks/use-modal-store";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
+
+// ── WhatsApp dropdown ────────────────────────────────────────────────────────
+function WhatsAppMenu() {
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '9px 16px',
+          backgroundColor: '#25D366',
+          color: 'white',
+          border: 'none',
+          borderRadius: '8px',
+          fontSize: '13px',
+          fontWeight: '600',
+          cursor: 'pointer',
+        }}
+      >
+        💬 WhatsApp
+        <span style={{ fontSize: '10px' }}>▾</span>
+      </button>
+
+      {open && (
+        <>
+          <div
+            onClick={() => setOpen(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 40,
+            }}
+          />
+          <div style={{
+            position: 'absolute',
+            top: 'calc(100% + 6px)',
+            right: 0,
+            backgroundColor: 'white',
+            border: '1px solid #e2e8f0',
+            borderRadius: '10px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+            zIndex: 50,
+            minWidth: '220px',
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              padding: '8px 12px',
+              backgroundColor: '#f8fafc',
+              borderBottom: '1px solid #e2e8f0',
+            }}>
+              <p style={{
+                fontSize: '11px',
+                fontWeight: '600',
+                color: '#64748b',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+              }}>
+                WhatsApp
+              </p>
+            </div>
+            {[
+              {
+                label: '📢 Schedule Campaign',
+                desc: 'Select patients and schedule',
+                action: () => {
+                  setOpen(false)
+                  router.push('/admin/campaigns')
+                }
+              },
+              {
+                label: '📋 View Templates',
+                desc: 'Manage Hindi & English templates',
+                action: () => {
+                  setOpen(false)
+                  router.push('/admin/wa-templates')
+                }
+              },
+              {
+                label: '📊 Campaign History',
+                desc: 'See sent and scheduled campaigns',
+                action: () => {
+                  setOpen(false)
+                  router.push('/admin/campaigns')
+                }
+              },
+              {
+                label: '⚙️ WA Settings',
+                desc: 'Connection status and test',
+                action: () => {
+                  setOpen(false)
+                  router.push('/admin/whatsapp')
+                }
+              },
+            ].map((item, i) => (
+              <button
+                key={i}
+                onClick={item.action}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '11px 14px',
+                  border: 'none',
+                  backgroundColor: 'white',
+                  cursor: 'pointer',
+                  borderBottom: i < 3
+                    ? '1px solid #f1f5f9'
+                    : 'none',
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement)
+                    .style.backgroundColor = '#f8fafc'
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement)
+                    .style.backgroundColor = 'white'
+                }}
+              >
+                <p style={{
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  color: '#1e293b',
+                  marginBottom: '2px',
+                }}>
+                  {item.label}
+                </p>
+                <p style={{
+                  fontSize: '11px',
+                  color: '#94a3b8',
+                }}>
+                  {item.desc}
+                </p>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
 interface BillboardClientProps {
   data: LeadCloumn[];
@@ -193,59 +335,7 @@ export const BillboardClient: React.FC<BillboardClientProps> = ({
       <div className="flex items-center justify-between">
         <Heading title={`Leads (${data.length})`} description="Manage patients for your hospital" />
         <div className="flex items-center gap-4">
-          <MuiButton
-            variant="contained"
-            color="secondary"
-            startIcon={<WhatsAppIcon />}
-            onClick={() => onOpen("sendBulkMessage", {
-              selectedLeads: tableRef.current?.getSelectedData()
-            })}
-            disabled={selectedCount === 0}
-          >
-            Send WhatsApp ({selectedCount})
-          </MuiButton>
-
-          <div className="flex items-center gap-2 border-l border-r px-4">
-            <MuiButton
-              variant="contained"
-              color="info"
-              startIcon={<TemplateIcon />}
-              onClick={() => onOpen("viewTemplates")}
-              className="whitespace-nowrap"
-            >
-              View Templates
-            </MuiButton>
-
-            <MuiButton
-              variant="contained"
-              color="primary"
-              startIcon={<AddIcon />}
-              onClick={() => onOpen("createTemplate")}
-              className="whitespace-nowrap"
-            >
-              Create Template
-            </MuiButton>
-
-            <MuiButton
-              variant="contained"
-              color="success"
-              startIcon={<TemplateIcon />}
-              onClick={() => onOpen("viewMetaTemplates")}
-              className="whitespace-nowrap"
-            >
-              Meta Templates
-            </MuiButton>
-
-            <MuiButton
-              variant="outlined"
-              color="secondary"
-              startIcon={<AddIcon />}
-              onClick={() => onOpen("addMetaTemplate")}
-              className="whitespace-nowrap"
-            >
-              Add Meta Template
-            </MuiButton>
-          </div>
+          <WhatsAppMenu />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

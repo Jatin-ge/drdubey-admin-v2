@@ -9,7 +9,9 @@ export async function GET() {
       orderBy: { createdAt: 'desc' }
     })
     return NextResponse.json(templates)
-  } catch (e) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Unknown error'
+    console.error('WA Template GET error:', msg)
     return NextResponse.json([])
   }
 }
@@ -17,13 +19,36 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json()
+
+    if (!body.name?.trim()) {
+      return NextResponse.json(
+        { error: 'Template name is required' },
+        { status: 400 }
+      )
+    }
+
     const template = await db.whatsAppTemplate.create({
-      data: body
+      data: {
+        name: body.name.trim(),
+        nameHi: body.nameHi?.trim() || null,
+        category: body.category || 'UTILITY',
+        language: body.language || 'hi',
+        bodyEn: body.bodyEn?.trim() || '',
+        bodyHi: body.bodyHi?.trim() || '',
+        variables: Array.isArray(body.variables) ? body.variables : [],
+        metaName: body.metaName?.trim() || null,
+        isApproved: body.isApproved === true,
+        isActive: true,
+      }
     })
+
     return NextResponse.json(template)
-  } catch (e: any) {
+
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Failed to create template'
+    console.error('WA Template POST error:', msg)
     return NextResponse.json(
-      { error: e.message },
+      { error: msg },
       { status: 500 }
     )
   }
