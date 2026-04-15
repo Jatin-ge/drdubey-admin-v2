@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
 
 const WHATSAPP_API_BASE = "https://graph.facebook.com";
 const API_VERSION = "v22.0";
@@ -19,11 +20,10 @@ export async function POST(req: Request) {
 
     if (!PHONE_ID || !TOKEN) {
       return NextResponse.json({
-        error: "WhatsApp not configured — missing WHATSAPP_PHONE_ID or WHATSAPP_API_TOKEN"
+        error: "WhatsApp not configured — missing env vars"
       }, { status: 500 });
     }
 
-    // Format phone number if needed
     const formattedPhone = phone.startsWith('+') ? phone.substring(1) : phone;
 
     const whatsappBody = {
@@ -33,9 +33,7 @@ export async function POST(req: Request) {
       type: "template",
       template: {
         name: template.toLowerCase(),
-        language: {
-          code: "en_US"
-        }
+        language: { code: "en_US" }
       }
     };
 
@@ -52,6 +50,20 @@ export async function POST(req: Request) {
     );
 
     const data = await response.json();
+
+    // Log to WhatsAppMessageLog
+    await db.whatsAppMessageLog.create({
+      data: {
+        phone: formattedPhone,
+        templateName: template.toLowerCase(),
+        language: 'en_US',
+        variables: [],
+        status: response.ok ? 'SENT' : 'FAILED',
+        messageId: data.messages?.[0]?.id || null,
+        errorMsg: response.ok ? null : (data.error?.message || 'Failed'),
+        source: 'template-send',
+      }
+    }).catch(e => console.error('[MSG_LOG]', e));
 
     if (!response.ok) {
       console.error("Error sending WhatsApp message:", data);

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { db } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 
 const PHONE_ID = process.env.WHATSAPP_PHONE_ID
@@ -18,12 +19,20 @@ export async function POST(req: Request) {
       templateName,
       language = 'hi',
       parameters = [],
+      leadId,
     } = body
 
     if (!phone || !templateName) {
       return NextResponse.json(
         { error: 'phone and templateName required' },
         { status: 400 }
+      )
+    }
+
+    if (!PHONE_ID || !TOKEN) {
+      return NextResponse.json(
+        { error: 'WhatsApp not configured — missing env vars' },
+        { status: 500 }
       )
     }
 
@@ -61,6 +70,21 @@ export async function POST(req: Request) {
     })
 
     const data = await res.json()
+
+    // Log to WhatsAppMessageLog
+    await db.whatsAppMessageLog.create({
+      data: {
+        leadId: leadId || null,
+        phone: to,
+        templateName,
+        language: language === 'hi' ? 'hi' : 'en_US',
+        variables: parameters,
+        status: res.ok ? 'SENT' : 'FAILED',
+        messageId: data.messages?.[0]?.id || null,
+        errorMsg: res.ok ? null : (data.error?.message || 'Send failed'),
+        source: 'individual',
+      }
+    }).catch(e => console.error('[MSG_LOG]', e))
 
     if (!res.ok) {
       console.error('WhatsApp API error:', data)

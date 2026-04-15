@@ -280,14 +280,22 @@ createdAt DateTime @default(now())
 }
 
 model WhatsAppMessageLog {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  leadId     String?  @db.ObjectId
-  phone      String
-  templateId String   @db.ObjectId
-  variables  String[]
-  status     String
-  errorMsg   String?
-  sentAt     DateTime @default(now())
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  leadId        String?  @db.ObjectId
+  phone         String
+  templateId    String?  @db.ObjectId
+  templateName  String?
+  language      String?
+  variables     String[]
+  status        String
+  messageId     String?
+  errorMsg      String?
+  source        String?
+  sentAt        DateTime @default(now())
+
+  @@index([phone])
+  @@index([sentAt])
+  @@index([status])
 }
 
 model Achievement {

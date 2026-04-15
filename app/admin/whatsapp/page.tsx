@@ -242,6 +242,9 @@ export default function WhatsAppPage() {
         </div>
       )}
 
+      {/* Message Stats */}
+      <MessageStats />
+
       {/* Quick Links */}
       <div style={{
         backgroundColor: 'white',
@@ -254,6 +257,7 @@ export default function WhatsAppPage() {
         </h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {[
+            { label: 'Message History', href: '/admin/whatsapp/history', desc: 'View all sent messages and delivery status' },
             { label: 'Manage Templates', href: '/admin/wa-templates', desc: 'Add and edit Hindi/English templates' },
             { label: 'View Campaigns', href: '/admin/campaigns', desc: 'See scheduled and sent campaigns' },
             { label: 'Schedule Campaign', href: '/admin/patients', desc: 'Select patients and schedule messages' },
@@ -277,6 +281,109 @@ export default function WhatsAppPage() {
           ))}
         </div>
       </div>
+    </div>
+  )
+}
+
+function MessageStats() {
+  const [stats, setStats] = useState<any>(null)
+
+  useEffect(() => {
+    fetch('/api/whatsapp/history?limit=5')
+      .then(r => r.json())
+      .then(d => setStats(d))
+      .catch(() => {})
+  }, [])
+
+  if (!stats) return null
+
+  const successRate = stats.sentCount + stats.failedCount > 0
+    ? Math.round((stats.sentCount / (stats.sentCount + stats.failedCount)) * 100)
+    : 0
+
+  return (
+    <div style={{
+      backgroundColor: 'white',
+      borderRadius: '12px',
+      border: '1px solid #e2e8f0',
+      padding: '20px 24px',
+      marginBottom: '20px',
+    }}>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        marginBottom: '16px',
+      }}>
+        <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#1e293b' }}>
+          Messaging Overview
+        </h3>
+        <a href="/admin/whatsapp/history" style={{
+          fontSize: '13px', color: '#2563eb', textDecoration: 'none', fontWeight: '500',
+        }}>
+          View all →
+        </a>
+      </div>
+
+      {/* Stats Row */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: '12px', marginBottom: '16px',
+      }}>
+        <div style={{
+          backgroundColor: '#f8fafc', borderRadius: '8px', padding: '12px', textAlign: 'center',
+        }}>
+          <p style={{ fontSize: '22px', fontWeight: '700', color: '#0f172a' }}>{stats.total}</p>
+          <p style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '500' }}>Total Sent</p>
+        </div>
+        <div style={{
+          backgroundColor: '#f0fdf4', borderRadius: '8px', padding: '12px', textAlign: 'center',
+        }}>
+          <p style={{ fontSize: '22px', fontWeight: '700', color: '#16a34a' }}>{successRate}%</p>
+          <p style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '500' }}>Success Rate</p>
+        </div>
+        <div style={{
+          backgroundColor: '#fef2f2', borderRadius: '8px', padding: '12px', textAlign: 'center',
+        }}>
+          <p style={{ fontSize: '22px', fontWeight: '700', color: '#dc2626' }}>{stats.failedCount}</p>
+          <p style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '500' }}>Failed</p>
+        </div>
+      </div>
+
+      {/* Recent Messages */}
+      {stats.messages && stats.messages.length > 0 && (
+        <div>
+          <p style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '500', marginBottom: '8px' }}>
+            RECENT MESSAGES
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {stats.messages.map((m: any) => (
+              <div key={m.id} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '8px 12px', backgroundColor: '#f8fafc', borderRadius: '6px',
+                fontSize: '13px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{
+                    width: '6px', height: '6px', borderRadius: '50%',
+                    backgroundColor: m.status === 'SENT' ? '#16a34a' : '#dc2626',
+                    flexShrink: 0,
+                  }} />
+                  <span style={{ color: '#1e293b', fontWeight: '500' }}>
+                    {m.patientName || m.phone}
+                  </span>
+                  <span style={{ color: '#94a3b8' }}>
+                    {m.templateName}
+                  </span>
+                </div>
+                <span style={{ color: '#94a3b8', fontSize: '12px' }}>
+                  {new Date(m.sentAt).toLocaleString('en-IN', {
+                    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                  })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

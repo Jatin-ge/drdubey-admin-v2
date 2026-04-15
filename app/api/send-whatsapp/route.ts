@@ -23,21 +23,9 @@ export async function POST(req: Request) {
       }, { status: 500 });
     }
 
-    // Verify template exists in our database
-    const template = await db.metaTemplate.findUnique({
-      where: { name: body.templateName }
-    });
-
-    if (!template) {
-      return NextResponse.json({
-        error: "Template not found in database"
-      }, { status: 404 });
-    }
-
     const results = [];
     const errors = [];
 
-    // Send message to each recipient
     for (const recipient of body.recipients) {
       try {
         const messageData = {
@@ -73,20 +61,34 @@ export async function POST(req: Request) {
           }
         );
 
+        const respData = await response.json();
+
+        // Log to WhatsAppMessageLog
+        await db.whatsAppMessageLog.create({
+          data: {
+            phone: recipient.phone,
+            templateName: body.templateName,
+            language: body.language || 'en_US',
+            variables: body.parameters || [],
+            status: response.ok ? 'SENT' : 'FAILED',
+            messageId: respData.messages?.[0]?.id || null,
+            errorMsg: response.ok ? null : (respData.error?.message || 'Failed'),
+            source: 'bulk',
+          }
+        }).catch(e => console.error('[MSG_LOG]', e));
+
         if (response.ok) {
-          const result = await response.json();
           results.push({
             phone: recipient.phone,
             name: recipient.name,
             success: true,
-            messageId: result.messages[0].id
+            messageId: respData.messages?.[0]?.id
           });
         } else {
-          const error = await response.json();
           errors.push({
             phone: recipient.phone,
             name: recipient.name,
-            error: error.error?.message || 'Failed to send message'
+            error: respData.error?.message || 'Failed to send message'
           });
         }
       } catch (error) {
@@ -110,4 +112,4 @@ export async function POST(req: Request) {
     console.error("[SEND_WHATSAPP]", error);
     return NextResponse.json({ error: "Failed to send messages" }, { status: 500 });
   }
-} 
+}
