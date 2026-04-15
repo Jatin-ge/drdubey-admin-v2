@@ -4,6 +4,10 @@ import { whatsappApi } from "@/lib/whatsapp-api";
 import { TemplateCategory } from "@prisma/client";
 
 const WHATSAPP_API_BASE = "https://graph.facebook.com";
+const API_VERSION = "v22.0";
+const PHONE_ID = process.env.WHATSAPP_PHONE_ID || '';
+const TOKEN = process.env.WHATSAPP_API_TOKEN || '';
+const WABA_ID = process.env.WHATSAPP_WABA_ID || '';
 
 // Define allowed button types
 const BUTTON_TYPES = {
@@ -182,11 +186,11 @@ export async function POST(req: Request) {
       ].filter(Boolean);
 
       const whatsappResponse = await fetch(
-        `${WHATSAPP_API_BASE}/${process.env.WHATSAPP_API_VERSION}/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`,
+        `${WHATSAPP_API_BASE}/${API_VERSION}/${WABA_ID}/message_templates`,
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+            'Authorization': `Bearer ${TOKEN}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({

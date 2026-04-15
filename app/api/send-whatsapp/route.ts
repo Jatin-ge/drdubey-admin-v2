@@ -2,15 +2,25 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 const WHATSAPP_API_BASE = "https://graph.facebook.com";
+const API_VERSION = "v22.0";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    
+
     if (!body.templateName || !body.recipients || !Array.isArray(body.recipients)) {
-      return NextResponse.json({ 
-        error: "Template name and recipients array are required" 
+      return NextResponse.json({
+        error: "Template name and recipients array are required"
       }, { status: 400 });
+    }
+
+    const PHONE_ID = process.env.WHATSAPP_PHONE_ID;
+    const TOKEN = process.env.WHATSAPP_API_TOKEN;
+
+    if (!PHONE_ID || !TOKEN) {
+      return NextResponse.json({
+        error: "WhatsApp not configured — missing WHATSAPP_PHONE_ID or WHATSAPP_API_TOKEN"
+      }, { status: 500 });
     }
 
     // Verify template exists in our database
@@ -19,8 +29,8 @@ export async function POST(req: Request) {
     });
 
     if (!template) {
-      return NextResponse.json({ 
-        error: "Template not found in database" 
+      return NextResponse.json({
+        error: "Template not found in database"
       }, { status: 404 });
     }
 
@@ -52,11 +62,11 @@ export async function POST(req: Request) {
         };
 
         const response = await fetch(
-          `${WHATSAPP_API_BASE}/${process.env.WHATSAPP_API_VERSION}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+          `${WHATSAPP_API_BASE}/${API_VERSION}/${PHONE_ID}/messages`,
           {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+              'Authorization': `Bearer ${TOKEN}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify(messageData)
