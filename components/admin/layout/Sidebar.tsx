@@ -60,6 +60,7 @@ const NAV_GROUPS = [
     items: [
       { label: "Achievements", href: "/admin/achievements", icon: Trophy },
       { label: "Blog Posts", href: "/admin/blogs", icon: FileText },
+      { label: "Articles", href: "/admin/articles", icon: FileText },
       { label: "Services", href: "/admin/services", icon: Layers },
       { label: "Gallery", href: "/admin/manage_image", icon: Image },
       { label: "Events", href: "/admin/events", icon: Activity },
