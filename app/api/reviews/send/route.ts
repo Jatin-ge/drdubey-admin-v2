@@ -30,7 +30,6 @@ export async function POST() {
       take: 50,
     })
 
-    console.log('Review requests to send:', patients.length)
 
     const PHONE_ID = process.env.WHATSAPP_PHONE_ID
     const TOKEN = process.env.WHATSAPP_API_TOKEN

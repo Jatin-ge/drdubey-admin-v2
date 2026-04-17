@@ -15,7 +15,7 @@ export async function GET(
     }
     return NextResponse.json(blog);
   } catch (error) {
-    console.log("[BLOG_GET_ONE]", error);
+    console.error("[BLOG_GET_ONE]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
@@ -35,7 +35,7 @@ export async function PUT(
     });
     return NextResponse.json(blog);
   } catch (error) {
-    console.log("[BLOG_PUT]", error);
+    console.error("[BLOG_PUT]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
@@ -51,7 +51,7 @@ export async function DELETE(
     await db.blogs.delete({ where: { id: params.id } });
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.log("[BLOG_DELETE]", error);
+    console.error("[BLOG_DELETE]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }

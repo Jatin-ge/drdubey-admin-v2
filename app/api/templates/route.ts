@@ -96,8 +96,6 @@ const formatContent = (content: string, isHeader: boolean = false): string => {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log("Received template request:", body);
-
     // Validate required fields
     if (!body.name || !body.category || !body.language || !body.bodyContent) {
       return NextResponse.json({ 

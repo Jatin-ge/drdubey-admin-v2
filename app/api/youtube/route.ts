@@ -4,7 +4,6 @@ import { NextResponse } from "next/server";
 export async function POST(req: Request) {
   try {
     const values = await req.json();
-    console.log("values", values);
 
     // Validate required fields
     if (!values.title || !values.description) {

@@ -6,7 +6,6 @@ export async function DELETE(
     req: Request,
     {params}: {params: {ImageId: string}}
 ){
-    console.log("params", params)
     try{
         if(!params.ImageId){
             return new NextResponse("Image Id missing", {status: 400})
@@ -21,7 +20,7 @@ export async function DELETE(
         return NextResponse.json(deletedImage);
     }
     catch(err){
-        console.log("DELTE_IMAGE", err);
+        console.error("[DELETE_IMAGE]", err);
         return new NextResponse("Internal lead error", {status: 500})
     }
 }

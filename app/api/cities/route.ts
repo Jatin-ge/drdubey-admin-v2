@@ -57,7 +57,7 @@ export async function POST(req: Request) {
       message: `"${cityName}" added successfully`
     });
   } catch (error) {
-    console.log("Error saving city:", error);
+    console.error("[CITIES_POST]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
@@ -87,7 +87,7 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.log("Error updating city:", error);
+    console.error("[CITIES_PATCH]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
@@ -107,7 +107,7 @@ export async function DELETE(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.log("Error deleting city:", error);
+    console.error("[CITIES_DELETE]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 } 

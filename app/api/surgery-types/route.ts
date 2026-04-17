@@ -59,7 +59,7 @@ export async function POST(req: Request) {
       message: `"${surgeryTypeName}" added successfully`,
     });
   } catch (error) {
-    console.log("Error saving surgery type:", error);
+    console.error("[SURGERY_TYPES_POST]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
@@ -92,7 +92,7 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.log("Error updating surgery type:", error);
+    console.error("[SURGERY_TYPES_PATCH]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
@@ -112,7 +112,7 @@ export async function DELETE(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.log("Error deleting surgery type:", error);
+    console.error("[SURGERY_TYPES_DELETE]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }

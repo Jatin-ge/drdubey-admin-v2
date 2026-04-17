@@ -108,7 +108,7 @@ export async function GET() {
       totalContacts,
     });
   } catch (error) {
-    console.log("[ANALYTICS]", error);
+    console.error("[ANALYTICS]", error);
     return NextResponse.json({
       totalPatients: 0,
       thisMonthPatients: 0,

@@ -36,7 +36,7 @@ export async function POST(
       
       return NextResponse.json(booking);
   } catch (error) {
-    console.log("[CHANNEL_ID_DELETE]", error);
+    console.error("[ANOTHER_BOOKING_POST]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }

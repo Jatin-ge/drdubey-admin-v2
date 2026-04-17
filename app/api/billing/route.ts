@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { ZodError } from "zod";
+import { BillingSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +33,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const raw = await req.json();
+    const body = BillingSchema.parse(raw);
     const total =
       (body.surgeonFee || 0) +
       (body.hospitalCharges || 0) +
@@ -63,6 +66,13 @@ export async function POST(req: Request) {
     });
     return NextResponse.json(record);
   } catch (error: any) {
+    if (error instanceof ZodError) {
+      return NextResponse.json(
+        { error: "Validation failed", details: error.errors },
+        { status: 400 }
+      );
+    }
+    console.error("[BILLING_POST]", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

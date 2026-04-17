@@ -24,7 +24,7 @@ export async function PATCH(
       
       return NextResponse.json(discussion);
   } catch (error) {
-    console.log("DISCUSSION_PATCH", error);
+    console.error("DISCUSSION_PATCH", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }

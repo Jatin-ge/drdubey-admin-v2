@@ -14,6 +14,7 @@ export async function GET(req: Request) {
 
     const appointments = await db.appointment.findMany({
       orderBy: { createdAt: "desc" },
+      take: 500,
     });
 
     const closedDays = await db.closedDay.findMany({

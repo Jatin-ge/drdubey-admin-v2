@@ -23,7 +23,7 @@ export async function DELETE(
         return NextResponse.json(lead);
     }
     catch(err){
-        console.log("LEAVE_lead_PATCH", err);
+        console.error("LEAVE_lead_PATCH", err);
         return new NextResponse("Internal lead error", {status: 500})
     }
 }

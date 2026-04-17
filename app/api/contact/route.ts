@@ -23,7 +23,7 @@ export async function POST(
       
       return NextResponse.json(contact);
   } catch (error) {
-    console.log("[CHANNEL_ID_DELETE]", error);
+    console.error("[CONTACT_POST]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }

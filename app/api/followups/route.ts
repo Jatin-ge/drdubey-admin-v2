@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { ZodError } from "zod";
+import { FollowUpSchema } from "@/lib/validations";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +41,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const raw = await req.json();
+    const body = FollowUpSchema.parse(raw);
     const followup = await db.followUp.create({
       data: {
         leadId: body.leadId,
@@ -51,6 +54,13 @@ export async function POST(req: Request) {
     });
     return NextResponse.json(followup);
   } catch (error: any) {
+    if (error instanceof ZodError) {
+      return NextResponse.json(
+        { error: "Validation failed", details: error.errors },
+        { status: 400 }
+      );
+    }
+    console.error("[FOLLOWUPS_POST]", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

@@ -12,12 +12,6 @@ export async function POST(req: Request) {
     const file = formData.get('file') as File;
     const type = formData.get('type') as string;
 
-    console.log("Processing media upload:", {
-      fileType: file?.type,
-      fileSize: file?.size,
-      uploadType: type
-    });
-
     if (!file || !type) {
       return NextResponse.json(
         { error: "File and type are required" },
@@ -56,8 +50,6 @@ export async function POST(req: Request) {
     }
 
     const mediaId = await whatsappApi.uploadMedia(file, type);
-    console.log("Media upload successful, ID:", mediaId);
-    
     return NextResponse.json({ id: mediaId });
   } catch (error: any) {
     console.error("[MEDIA_UPLOAD]", error);

@@ -13,13 +13,6 @@ const S3 = new S3Client({
 });
 
 export async function GET(request: Request) {
-  console.log("R2 Config:", {
-    accountId: process.env.R2_ACCOUNT_ID,
-    bucketName: process.env.R2_EVENTS_BUCKET_NAME,
-    hasAccessKey: !!process.env.R2_ACCESS_KEY_ID,
-    hasSecretKey: !!process.env.R2_SECRET_ACCESS_KEY
-  });
-
   try {
     // Verify credentials
     if (!process.env.R2_ACCESS_KEY_ID || !process.env.R2_SECRET_ACCESS_KEY) {
@@ -52,7 +45,6 @@ export async function GET(request: Request) {
       expiresIn: 300,
     });
 
-    console.log("Generated signed URL for key:", key);
     return NextResponse.json({ url: signedUrl });
   } catch (error) {
     console.error("Error generating presigned URL:", error);

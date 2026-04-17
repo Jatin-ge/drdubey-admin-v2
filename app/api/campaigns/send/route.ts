@@ -13,8 +13,6 @@ export async function POST(req: Request) {
       }
     })
 
-    console.log('Due campaigns:', dueCampaigns.length)
-
     for (const campaign of dueCampaigns) {
       await db.campaign.update({
         where: { id: campaign.id },

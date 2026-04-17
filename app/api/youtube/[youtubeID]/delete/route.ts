@@ -6,9 +6,7 @@ export async function DELETE(
     req: Request,
     {params}: {params: {youtubeID: string}}
 ){
-    console.log("params", params)
     try{
-        console.log("params", params.youtubeID)
         if(!params.youtubeID){
             return new NextResponse("Video Id missing", {status: 400})
         }
@@ -22,7 +20,7 @@ export async function DELETE(
         return NextResponse.json(deletedVideo);
     }
     catch(err){
-        console.log("DELTE_YT", err);
+        console.error("[DELETE_YT]", err);
         return new NextResponse("Internal lead error", {status: 500})
     }
 }

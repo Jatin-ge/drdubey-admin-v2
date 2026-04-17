@@ -67,7 +67,7 @@ export async function GET() {
       recentPatients,
     });
   } catch (error) {
-    console.log("[DASHBOARD_STATS]", error);
+    console.error("[DASHBOARD_STATS]", error);
     return NextResponse.json({
       totalPatients: 0,
       thisWeekPatients: 0,

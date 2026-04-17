@@ -18,11 +18,9 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const values = await req.json();
-    console.log("📥 API received data:", values);
 
     // Validate required fields
     if (!values.title?.trim() || !values.description?.trim()) {
-      console.log("❌ Validation failed:", { values });
       return NextResponse.json(
         { error: "Title and description are required" }, 
         { status: 400 }
@@ -37,13 +35,10 @@ export async function POST(req: Request) {
       imageUrl: values.mediaType === 'image' ? values.imageUrl : null,
     };
 
-    console.log("📝 Creating event with data:", eventData);
-
-    const event = await db.event.create({ 
+    const event = await db.event.create({
       data: eventData
     });
-    
-    console.log("✅ Event created:", event);
+
     return NextResponse.json(event);
   } catch (error) {
     console.error("❌ Error creating event:", error);

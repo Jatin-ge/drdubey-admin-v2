@@ -5,10 +5,11 @@ export async function GET() {
   try {
     const blogs = await db.blogs.findMany({
       orderBy: [{ isPublished: "desc" }, { publishedAt: "desc" }],
+      take: 100,
     });
     return NextResponse.json(blogs);
   } catch (error) {
-    console.log("[BLOGS_GET]", error);
+    console.error("[BLOGS_GET]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
     });
     return NextResponse.json(blog);
   } catch (error) {
-    console.log("[BLOGS_CREATE]", error);
+    console.error("[BLOGS_CREATE]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }

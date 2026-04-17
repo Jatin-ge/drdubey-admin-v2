@@ -26,7 +26,7 @@ export async function POST(
       
       return NextResponse.json(payemnt);
   } catch (error) {
-    console.log("[PAYMENT_CREATE]", error);
+    console.error("[PAYMENT_CREATE]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }

@@ -6,7 +6,7 @@ export async function GET() {
     const services = await db.services.findMany();
     return NextResponse.json(services);
   } catch (error) {
-    console.log("[SERVICES_GET]", error);
+    console.error("[SERVICES_GET]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     });
     return NextResponse.json(service);
   } catch (error) {
-    console.log("[SERVICE_CREATE]", error);
+    console.error("[SERVICE_CREATE]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }

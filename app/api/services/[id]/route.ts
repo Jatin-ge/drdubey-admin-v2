@@ -15,7 +15,7 @@ export async function GET(
     }
     return NextResponse.json(service);
   } catch (error) {
-    console.log("[SERVICE_GET_ONE]", error);
+    console.error("[SERVICE_GET_ONE]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
@@ -35,7 +35,7 @@ export async function PUT(
     });
     return NextResponse.json(service);
   } catch (error) {
-    console.log("[SERVICE_PUT]", error);
+    console.error("[SERVICE_PUT]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
@@ -51,7 +51,7 @@ export async function DELETE(
     await db.services.delete({ where: { id: params.id } });
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.log("[SERVICE_DELETE]", error);
+    console.error("[SERVICE_DELETE]", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }

@@ -11,7 +11,7 @@ export async function GET() {
     });
     return NextResponse.json(doctors);
   } catch (error) {
-    console.log("[REFERRAL_DOCTORS_GET]", error);
+    console.error("[REFERRAL_DOCTORS_GET]", error);
     return NextResponse.json([]);
   }
 }
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     });
     return NextResponse.json(doctor);
   } catch (error: any) {
-    console.log("[REFERRAL_DOCTORS_POST]", error);
+    console.error("[REFERRAL_DOCTORS_POST]", error);
     return NextResponse.json(
       { error: error.message || "Failed to create" },
       { status: 500 }
