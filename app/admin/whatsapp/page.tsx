@@ -148,16 +148,34 @@ export default function WhatsAppPage() {
           </div>
         )}
 
-        {!loading && waStatus?.error && (
+        {!loading && !isConnected && (
           <div style={{
             backgroundColor: '#fef2f2',
             borderRadius: '8px',
-            padding: '12px',
+            padding: '16px',
             marginTop: '12px',
           }}>
-            <p style={{ fontSize: '13px', color: '#dc2626' }}>
-              Error: {waStatus.error}
+            {waStatus?.error && (
+              <p style={{ fontSize: '13px', color: '#dc2626', marginBottom: '12px' }}>
+                Error: {waStatus.error}
+              </p>
+            )}
+            <p style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', marginBottom: '8px' }}>
+              Setup Required
             </p>
+            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '12px', lineHeight: 1.6 }}>
+              WhatsApp Business API is not connected. To set up:
+            </p>
+            <ol style={{ fontSize: '13px', color: '#475569', lineHeight: 2, paddingLeft: '20px', margin: 0 }}>
+              <li>Go to Meta Developer Console → WhatsApp → API Setup</li>
+              <li>Create a new WhatsApp Business Account (if needed)</li>
+              <li>Add and verify your phone number</li>
+              <li>Generate a System User token with Full Control</li>
+              <li>Run: <code style={{ backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>
+                node migration-scripts/setup-whatsapp.js
+              </code></li>
+              <li>Redeploy to Vercel</li>
+            </ol>
           </div>
         )}
       </div>
