@@ -35,6 +35,30 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Check if template was submitted to Meta
+    const template = await db.whatsAppTemplate.findUnique({
+      where: { id: params.id },
+    })
+
+    if (template?.metaName && template.metaStatus !== 'DRAFT') {
+      // Try to delete from Meta first
+      const TOKEN = process.env.WHATSAPP_API_TOKEN
+      const WABA_ID = process.env.WHATSAPP_WABA_ID
+      if (TOKEN && WABA_ID) {
+        try {
+          await fetch(
+            `https://graph.facebook.com/v22.0/${WABA_ID}/message_templates?name=${template.metaName}`,
+            {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${TOKEN}` },
+            }
+          )
+        } catch {
+          // Continue with DB delete even if Meta delete fails
+        }
+      }
+    }
+
     await db.whatsAppTemplate.delete({
       where: { id: params.id },
     })

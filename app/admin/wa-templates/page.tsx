@@ -13,6 +13,9 @@ interface WATemplate {
   metaName?: string
   isApproved: boolean
   isActive: boolean
+  metaStatus?: string
+  metaError?: string
+  metaSubmittedAt?: string
   source?: 'new' | 'legacy'
 }
 
@@ -96,11 +99,13 @@ function TemplateCard({
   language,
   onEdit,
   onDelete,
+  onSubmitToMeta,
 }: {
   template: WATemplate
   language: 'hi' | 'en'
   onEdit: (t: WATemplate) => void
   onDelete: (id: string) => void
+  onSubmitToMeta: (id: string) => void
 }) {
   const body = language === 'hi'
     ? template.bodyHi
@@ -151,29 +156,28 @@ function TemplateCard({
           }}>
             {template.category}
           </span>
-          {template.isApproved ? (
-            <span style={{
-              fontSize: '10px',
-              padding: '2px 8px',
-              borderRadius: '99px',
-              backgroundColor: '#f0fdf4',
-              color: '#15803d',
-              fontWeight: '500',
-            }}>
-              ✓ Approved
-            </span>
-          ) : (
-            <span style={{
-              fontSize: '10px',
-              padding: '2px 8px',
-              borderRadius: '99px',
-              backgroundColor: '#fef9c3',
-              color: '#92400e',
-              fontWeight: '500',
-            }}>
-              ⏳ Pending
-            </span>
-          )}
+          {(() => {
+            const s = template.metaStatus || 'DRAFT'
+            const statusConfig: Record<string, { bg: string; color: string; label: string }> = {
+              DRAFT: { bg: '#f1f5f9', color: '#64748b', label: 'Draft' },
+              PENDING: { bg: '#fef9c3', color: '#92400e', label: 'Pending Review' },
+              APPROVED: { bg: '#f0fdf4', color: '#15803d', label: 'Approved' },
+              REJECTED: { bg: '#fef2f2', color: '#dc2626', label: 'Rejected' },
+            }
+            const cfg = statusConfig[s] || statusConfig.DRAFT
+            return (
+              <span style={{
+                fontSize: '10px',
+                padding: '2px 8px',
+                borderRadius: '99px',
+                backgroundColor: cfg.bg,
+                color: cfg.color,
+                fontWeight: '500',
+              }}>
+                {s === 'APPROVED' ? '✓ ' : s === 'REJECTED' ? '✗ ' : s === 'PENDING' ? '⏳ ' : ''}{cfg.label}
+              </span>
+            )
+          })()}
           {template.source === 'legacy' && (
             <span style={{
               fontSize: '10px',
@@ -207,6 +211,18 @@ function TemplateCard({
             {template.metaName}
           </p>
         )}
+        {template.metaStatus === 'REJECTED' && template.metaError && (
+          <p style={{
+            fontSize: '11px',
+            color: '#dc2626',
+            marginTop: '4px',
+            backgroundColor: '#fef2f2',
+            padding: '4px 8px',
+            borderRadius: '4px',
+          }}>
+            Error: {template.metaError}
+          </p>
+        )}
       </div>
       <div style={{
         display: 'flex',
@@ -214,6 +230,23 @@ function TemplateCard({
         gap: '6px',
         flexShrink: 0,
       }}>
+        {template.source !== 'legacy' && (!template.metaStatus || template.metaStatus === 'DRAFT' || template.metaStatus === 'REJECTED') && (
+          <button
+            onClick={() => onSubmitToMeta(template.id)}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              backgroundColor: '#2563eb',
+              fontSize: '12px',
+              cursor: 'pointer',
+              color: 'white',
+              fontWeight: '600',
+            }}
+          >
+            Submit to Meta
+          </button>
+        )}
         <button
           onClick={() => onEdit(template)}
           disabled={template.source === 'legacy'}
@@ -645,7 +678,41 @@ export default function WATemplatesPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this template? This cannot be undone.')) return
     await fetch(`/api/wa-templates/${id}`, { method: 'DELETE' })
+    toast.success('Template deleted')
     await fetchTemplates()
+  }
+
+  const handleSubmitToMeta = async (id: string) => {
+    toast.loading('Submitting to Meta...', { id: 'submit-meta' })
+    try {
+      const res = await fetch(`/api/wa-templates/${id}/submit`, { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        toast.success('Submitted to Meta! Status will update after review.', { id: 'submit-meta' })
+        await fetchTemplates()
+      } else {
+        toast.error(`Failed: ${data.error || 'Unknown error'}`, { id: 'submit-meta', duration: 5000 })
+        await fetchTemplates()
+      }
+    } catch {
+      toast.error('Failed to submit', { id: 'submit-meta' })
+    }
+  }
+
+  const handleSyncStatus = async () => {
+    toast.loading('Syncing with Meta...', { id: 'sync-meta' })
+    try {
+      const res = await fetch('/api/wa-templates/sync', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        toast.success(`Synced! ${data.updated} template(s) updated.`, { id: 'sync-meta' })
+        await fetchTemplates()
+      } else {
+        toast.error('Sync failed', { id: 'sync-meta' })
+      }
+    } catch {
+      toast.error('Sync failed', { id: 'sync-meta' })
+    }
   }
 
   const hiCount = templates.filter(t => t.source === 'new' && !!t.bodyHi).length
@@ -697,6 +764,21 @@ export default function WATemplatesPage() {
             + New {language === 'hi' ? 'Hindi 🇮🇳' : 'English 🇬🇧'} Template
           </button>
         )}
+        <button
+          onClick={handleSyncStatus}
+          style={{
+            backgroundColor: 'white',
+            color: '#374151',
+            border: '1px solid #e2e8f0',
+            borderRadius: '8px',
+            padding: '10px 16px',
+            fontSize: '13px',
+            fontWeight: '500',
+            cursor: 'pointer',
+          }}
+        >
+          Sync from Meta
+        </button>
       </div>
 
       {/* Form */}
@@ -817,6 +899,7 @@ export default function WATemplatesPage() {
               language={language}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              onSubmitToMeta={handleSubmitToMeta}
             />
           ))}
         </div>

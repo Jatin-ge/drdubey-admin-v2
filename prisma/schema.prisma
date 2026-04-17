@@ -440,19 +440,22 @@ model CampaignLog {
 }
 
 model WhatsAppTemplate {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  name        String
-  nameHi      String?
-  category    String
-  language    String   @default("hi")
-  bodyEn      String
-  bodyHi      String
-  variables   String[]
-  metaName    String?
-  isApproved  Boolean  @default(false)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  nameHi          String?
+  category        String
+  language        String    @default("hi")
+  bodyEn          String
+  bodyHi          String
+  variables       String[]
+  metaName        String?
+  isApproved      Boolean   @default(false)
+  isActive        Boolean   @default(true)
+  metaStatus      String?   @default("DRAFT")
+  metaError       String?
+  metaSubmittedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 model ScheduledJob {
