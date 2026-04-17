@@ -218,7 +218,7 @@ export const BillboardClient: React.FC<BillboardClientProps> = ({
     // Fetch DB templates
     fetch('/api/wa-templates')
       .then(r => r.json())
-      .then(d => setWaTemplates(Array.isArray(d) ? d.filter((t: any) => t.isActive) : []))
+      .then(d => setWaTemplates(Array.isArray(d) ? d.filter((t: any) => t.isActive && t.metaStatus === 'APPROVED') : []))
       .catch(() => {});
     // Fetch live approved templates from Meta
     fetch('/api/whatsapp/templates')

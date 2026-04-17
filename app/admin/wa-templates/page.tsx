@@ -160,7 +160,7 @@ function TemplateCard({
             const s = template.metaStatus || 'DRAFT'
             const statusConfig: Record<string, { bg: string; color: string; label: string }> = {
               DRAFT: { bg: '#f1f5f9', color: '#64748b', label: 'Draft' },
-              PENDING: { bg: '#fef9c3', color: '#92400e', label: 'Pending Review' },
+              PENDING: { bg: '#fef9c3', color: '#92400e', label: 'Under Review' },
               APPROVED: { bg: '#f0fdf4', color: '#15803d', label: 'Approved' },
               REJECTED: { bg: '#fef2f2', color: '#dc2626', label: 'Rejected' },
             }
@@ -638,6 +638,41 @@ export default function WATemplatesPage() {
     fetchTemplates()
   }, [])
 
+  // Auto-poll PENDING templates every 60 seconds for 5 minutes
+  useEffect(() => {
+    const pendingTemplates = templates.filter(
+      t => t.source === 'new' && t.metaStatus === 'PENDING'
+    )
+    if (pendingTemplates.length === 0) return
+
+    const interval = setInterval(async () => {
+      let anyChanged = false
+      for (const t of pendingTemplates) {
+        try {
+          const res = await fetch(`/api/wa-templates/${t.id}/status`)
+          const data = await res.json()
+          if (data.changed) {
+            anyChanged = true
+            if (data.metaStatus === 'APPROVED') {
+              toast.success(`"${t.name}" approved by Meta!`)
+            } else if (data.metaStatus === 'REJECTED') {
+              toast.error(`"${t.name}" was rejected by Meta`)
+            }
+          }
+        } catch {}
+      }
+      if (anyChanged) fetchTemplates()
+    }, 60000) // Check every 60 seconds
+
+    // Stop after 5 minutes
+    const timeout = setTimeout(() => clearInterval(interval), 5 * 60 * 1000)
+
+    return () => {
+      clearInterval(interval)
+      clearTimeout(timeout)
+    }
+  }, [templates.filter(t => t.metaStatus === 'PENDING').map(t => t.id).join(',')])
+
   const filtered = templates.filter(t => {
     if (t.source === 'legacy') {
       return t.language === language || !t.language
@@ -783,15 +818,60 @@ export default function WATemplatesPage() {
 
       {/* Form */}
       {showForm && (
-        <TemplateForm
-          language={language}
-          initial={editingTemplate}
-          onSave={handleSave}
-          onCancel={() => {
-            setShowForm(false)
-            setEditingTemplate(null)
-          }}
-        />
+        <>
+          <TemplateForm
+            language={language}
+            initial={editingTemplate}
+            onSave={handleSave}
+            onCancel={() => {
+              setShowForm(false)
+              setEditingTemplate(null)
+            }}
+          />
+          {/* Best Practices */}
+          <div style={{
+            backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0',
+            padding: '16px 20px', marginBottom: '24px',
+          }}>
+            <p style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b', marginBottom: '10px' }}>
+              Template Best Practices
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '12px', color: '#64748b', lineHeight: 1.7 }}>
+              <div>
+                <p style={{ fontWeight: '600', color: '#374151', marginBottom: '4px' }}>Naming</p>
+                <ul style={{ margin: 0, paddingLeft: '16px' }}>
+                  <li>Use lowercase with underscores: <code style={{ fontSize: '11px', backgroundColor: '#e2e8f0', padding: '1px 4px', borderRadius: '3px' }}>opd_camp_jaipur</code></li>
+                  <li>Keep names unique and descriptive</li>
+                  <li>Don&apos;t reuse deleted template names (Meta remembers for 30 days)</li>
+                </ul>
+              </div>
+              <div>
+                <p style={{ fontWeight: '600', color: '#374151', marginBottom: '4px' }}>Category</p>
+                <ul style={{ margin: 0, paddingLeft: '16px' }}>
+                  <li><strong>UTILITY</strong>: reminders, follow-ups, OPD (approved faster)</li>
+                  <li><strong>MARKETING</strong>: promotions, campaigns (takes 24-48h)</li>
+                  <li>Avoid promotional language in UTILITY templates</li>
+                </ul>
+              </div>
+              <div>
+                <p style={{ fontWeight: '600', color: '#374151', marginBottom: '4px' }}>Body Content</p>
+                <ul style={{ margin: 0, paddingLeft: '16px' }}>
+                  <li>Keep under 1024 characters</li>
+                  <li>Use {'{{1}}'}, {'{{2}}'} for variables</li>
+                  <li>Hindi: use <code style={{ fontSize: '11px', backgroundColor: '#e2e8f0', padding: '1px 4px', borderRadius: '3px' }}>hi</code> language code</li>
+                </ul>
+              </div>
+              <div>
+                <p style={{ fontWeight: '600', color: '#374151', marginBottom: '4px' }}>Approval</p>
+                <ul style={{ margin: 0, paddingLeft: '16px' }}>
+                  <li>UTILITY templates: usually approved in minutes</li>
+                  <li>MARKETING templates: 24-48 hours</li>
+                  <li>Auto-check runs every 60s for 5 minutes after submission</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Language Toggle */}
