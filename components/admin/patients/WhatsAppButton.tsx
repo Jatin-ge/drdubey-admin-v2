@@ -1,38 +1,42 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
-const TEMPLATES = [
-  {
-    label: 'Appointment Reminder (Hindi)',
-    name: 'appointment_reminder_hi',
-    language: 'hi',
-  },
-  {
-    label: '1 Week Follow-Up (Hindi)',
-    name: 'post_surgery_1week_hi',
-    language: 'hi',
-  },
-  {
-    label: '1 Month Follow-Up (Hindi)',
-    name: 'post_surgery_1month_hi',
-    language: 'hi',
-  },
-]
+interface Template {
+  name: string
+  language: string
+  category: string
+}
 
 interface WhatsAppButtonProps {
   phone: string
   patientName: string
+  leadId?: string
 }
 
 export default function WhatsAppButton({
   phone,
   patientName,
+  leadId,
 }: WhatsAppButtonProps) {
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [loadingTemplates, setLoadingTemplates] = useState(false)
 
-  const sendMessage = async (template: typeof TEMPLATES[0]) => {
+  const fetchTemplates = () => {
+    if (templates.length > 0) return
+    setLoadingTemplates(true)
+    fetch('/api/whatsapp/templates')
+      .then(r => r.json())
+      .then(d => {
+        setTemplates(Array.isArray(d) ? d : [])
+        setLoadingTemplates(false)
+      })
+      .catch(() => setLoadingTemplates(false))
+  }
+
+  const sendMessage = async (template: Template) => {
     setSending(true)
     setShowMenu(false)
     try {
@@ -43,15 +47,19 @@ export default function WhatsAppButton({
           phone,
           templateName: template.name,
           language: template.language,
-          parameters: [patientName],
+          parameters: [],
+          leadId,
         })
       })
       if (res.ok) {
         setSent(true)
         setTimeout(() => setSent(false), 3000)
+      } else {
+        const err = await res.json()
+        alert(`Failed: ${err.error || 'Unknown error'}`)
       }
     } catch (e) {
-      console.error(e)
+      console.error('[WhatsAppButton]', e)
     } finally {
       setSending(false)
     }
@@ -63,7 +71,10 @@ export default function WhatsAppButton({
   return (
     <div style={{ position: 'relative', display: 'inline-block' }}>
       <button
-        onClick={() => setShowMenu(!showMenu)}
+        onClick={() => {
+          setShowMenu(!showMenu)
+          if (!showMenu) fetchTemplates()
+        }}
         disabled={sending}
         style={{
           display: 'flex',
@@ -79,7 +90,7 @@ export default function WhatsAppButton({
           cursor: sending ? 'not-allowed' : 'pointer',
         }}
       >
-        {sent ? '✅ Sent' : sending ? 'Sending...' : '💬 WhatsApp'}
+        {sent ? 'Sent' : sending ? 'Sending...' : 'WhatsApp'}
       </button>
 
       {showMenu && !sending && (
@@ -97,7 +108,7 @@ export default function WhatsAppButton({
             borderRadius: '10px',
             boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
             zIndex: 50,
-            minWidth: '240px',
+            minWidth: '260px',
             overflow: 'hidden',
           }}>
             <div style={{
@@ -112,35 +123,59 @@ export default function WhatsAppButton({
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px',
               }}>
-                Select template
+                Send template message
               </p>
             </div>
-            {TEMPLATES.map(t => (
-              <button
-                key={t.name}
-                onClick={() => sendMessage(t)}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  textAlign: 'left',
-                  padding: '11px 14px',
-                  border: 'none',
-                  backgroundColor: 'white',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  color: '#1e293b',
-                  borderBottom: '1px solid #f1f5f9',
-                }}
-                onMouseEnter={e => {
-                  (e.currentTarget as HTMLElement).style.backgroundColor = '#f8fafc'
-                }}
-                onMouseLeave={e => {
-                  (e.currentTarget as HTMLElement).style.backgroundColor = 'white'
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
+
+            {loadingTemplates ? (
+              <div style={{ padding: '14px', fontSize: '13px', color: '#94a3b8' }}>
+                Loading templates...
+              </div>
+            ) : templates.length === 0 ? (
+              <div style={{ padding: '14px', fontSize: '13px', color: '#94a3b8' }}>
+                No approved templates yet.
+                <br />
+                <span style={{ fontSize: '11px' }}>Create templates in WhatsApp Manager first.</span>
+              </div>
+            ) : (
+              templates.map(t => (
+                <button
+                  key={`${t.name}-${t.language}`}
+                  onClick={() => sendMessage(t)}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '11px 14px',
+                    border: 'none',
+                    backgroundColor: 'white',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    color: '#1e293b',
+                    borderBottom: '1px solid #f1f5f9',
+                  }}
+                  onMouseEnter={e => {
+                    (e.currentTarget as HTMLElement).style.backgroundColor = '#f8fafc'
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLElement).style.backgroundColor = 'white'
+                  }}
+                >
+                  <span style={{ fontWeight: '500' }}>{t.name}</span>
+                  <span style={{
+                    marginLeft: '8px',
+                    fontSize: '10px',
+                    padding: '1px 6px',
+                    borderRadius: '99px',
+                    backgroundColor: '#f1f5f9',
+                    color: '#94a3b8',
+                  }}>
+                    {t.language}
+                  </span>
+                </button>
+              ))
+            )}
+
             <a
               href={`https://wa.me/${waPhone}`}
               target="_blank"
@@ -152,9 +187,10 @@ export default function WhatsAppButton({
                 color: '#25D366',
                 fontWeight: '500',
                 textDecoration: 'none',
+                borderTop: '1px solid #e2e8f0',
               }}
             >
-              Open in WhatsApp ↗
+              Open in WhatsApp
             </a>
           </div>
         </>

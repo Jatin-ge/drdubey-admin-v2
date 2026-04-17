@@ -195,6 +195,9 @@ export const BillboardClient: React.FC<BillboardClientProps> = ({
     time: '09:00',
   });
   const [schedulingCampaign, setSchedulingCampaign] = useState(false);
+  const [sendingNow, setSendingNow] = useState(false);
+  const [sendNowResult, setSendNowResult] = useState<{ sent: number; failed: number } | null>(null);
+  const [liveTemplates, setLiveTemplates] = useState<any[]>([]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -212,10 +215,17 @@ export const BillboardClient: React.FC<BillboardClientProps> = ({
       date: today,
       time: '09:00',
     });
+    // Fetch DB templates
     fetch('/api/wa-templates')
       .then(r => r.json())
-      .then(d => setWaTemplates(Array.isArray(d) ? d : []))
+      .then(d => setWaTemplates(Array.isArray(d) ? d.filter((t: any) => t.isActive) : []))
       .catch(() => {});
+    // Fetch live approved templates from Meta
+    fetch('/api/whatsapp/templates')
+      .then(r => r.json())
+      .then(d => setLiveTemplates(Array.isArray(d) ? d : []))
+      .catch(() => {});
+    setSendNowResult(null);
     setShowScheduleModal(true);
   };
 
@@ -256,6 +266,74 @@ export const BillboardClient: React.FC<BillboardClientProps> = ({
       alert('Failed to schedule campaign');
     } finally {
       setSchedulingCampaign(false);
+    }
+  };
+
+  const sendNow = async () => {
+    const selectedData = tableRef.current?.getSelectedData() || [];
+    if (!campaignForm.templateId) {
+      alert('Please select a template');
+      return;
+    }
+    if (selectedData.length === 0) {
+      alert('No patients selected');
+      return;
+    }
+
+    const confirmed = confirm(`Send WhatsApp message to ${selectedData.length} patients right now?`);
+    if (!confirmed) return;
+
+    setSendingNow(true);
+    setSendNowResult(null);
+
+    try {
+      // Find template name — check DB templates first, then live templates
+      const dbTemplate = waTemplates.find(t => t.id === campaignForm.templateId);
+      const liveTemplate = liveTemplates.find(t => t.name === campaignForm.templateId);
+      const templateName = dbTemplate?.metaName || liveTemplate?.name || campaignForm.templateId;
+      const language = campaignForm.language === 'hi' ? 'hi' : 'en_US';
+
+      let sent = 0;
+      let failed = 0;
+
+      for (const patient of selectedData) {
+        if (!patient.phone) { failed++; continue; }
+
+        const phone = patient.phone.replace(/\D/g, '').replace(/^0/, '');
+        const fullPhone = phone.startsWith('91') ? phone : `91${phone}`;
+
+        try {
+          const res = await fetch('/api/whatsapp/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              phone: fullPhone,
+              templateName,
+              language,
+              parameters: [],
+              leadId: patient.id,
+            }),
+          });
+          if (res.ok) sent++;
+          else failed++;
+        } catch {
+          failed++;
+        }
+
+        // Small delay between messages
+        await new Promise(r => setTimeout(r, 100));
+      }
+
+      setSendNowResult({ sent, failed });
+      if (sent > 0) {
+        alert(`Done! ${sent} sent, ${failed} failed.`);
+      } else {
+        alert(`All ${failed} messages failed. Check template name and permissions.`);
+      }
+    } catch {
+      alert('Failed to send messages');
+    } finally {
+      setSendingNow(false);
     }
   };
 
@@ -510,7 +588,26 @@ export const BillboardClient: React.FC<BillboardClientProps> = ({
                 gap: '6px',
               }}
             >
-              📅 Schedule WhatsApp Campaign
+              📅 Schedule Campaign
+            </button>
+            <button
+              onClick={openScheduleModal}
+              data-mode="send-now"
+              style={{
+                padding: '8px 20px',
+                borderRadius: '7px',
+                border: 'none',
+                backgroundColor: '#2563eb',
+                color: 'white',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              📤 Send Now
             </button>
           </div>
         </div>
@@ -699,10 +796,63 @@ export const BillboardClient: React.FC<BillboardClientProps> = ({
               </div>
             </div>
 
+            {/* Live Templates from Meta */}
+            {liveTemplates.length > 0 && (
+              <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                <p style={{ fontSize: '12px', fontWeight: '600', color: '#16a34a', marginBottom: '6px' }}>
+                  Approved on Meta ({liveTemplates.length})
+                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {liveTemplates.map((t: any) => (
+                    <span key={t.name} style={{
+                      fontSize: '11px', padding: '3px 8px', borderRadius: '99px',
+                      backgroundColor: campaignForm.templateId === t.name ? '#16a34a' : 'white',
+                      color: campaignForm.templateId === t.name ? 'white' : '#374151',
+                      border: '1px solid #d1d5db', cursor: 'pointer',
+                    }}
+                    onClick={() => setCampaignForm(f => ({ ...f, templateId: t.name }))}
+                    >
+                      {t.name} ({t.language})
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {sendNowResult && (
+              <div style={{
+                marginTop: '12px', padding: '12px', borderRadius: '8px',
+                backgroundColor: sendNowResult.failed === 0 ? '#f0fdf4' : '#fef9c3',
+                border: `1px solid ${sendNowResult.failed === 0 ? '#bbf7d0' : '#fde68a'}`,
+              }}>
+                <p style={{ fontSize: '13px', fontWeight: '500', color: '#374151' }}>
+                  Sent: {sendNowResult.sent} | Failed: {sendNowResult.failed}
+                </p>
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
               <button
+                onClick={sendNow}
+                disabled={sendingNow || schedulingCampaign}
+                style={{
+                  flex: 1,
+                  backgroundColor: '#2563eb',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: (sendingNow || schedulingCampaign) ? 'not-allowed' : 'pointer',
+                  opacity: (sendingNow || schedulingCampaign) ? 0.7 : 1,
+                }}
+              >
+                {sendingNow ? 'Sending...' : `Send Now to ${selectedCount}`}
+              </button>
+              <button
                 onClick={scheduleCampaign}
-                disabled={schedulingCampaign}
+                disabled={schedulingCampaign || sendingNow}
                 style={{
                   flex: 1,
                   backgroundColor: '#25D366',
@@ -712,11 +862,11 @@ export const BillboardClient: React.FC<BillboardClientProps> = ({
                   padding: '12px',
                   fontSize: '14px',
                   fontWeight: '600',
-                  cursor: schedulingCampaign ? 'not-allowed' : 'pointer',
-                  opacity: schedulingCampaign ? 0.7 : 1,
+                  cursor: (schedulingCampaign || sendingNow) ? 'not-allowed' : 'pointer',
+                  opacity: (schedulingCampaign || sendingNow) ? 0.7 : 1,
                 }}
               >
-                {schedulingCampaign ? 'Scheduling...' : `Schedule for ${selectedCount} patients`}
+                {schedulingCampaign ? 'Scheduling...' : `Schedule for later`}
               </button>
               <button
                 onClick={() => setShowScheduleModal(false)}
