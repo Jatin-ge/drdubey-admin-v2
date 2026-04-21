@@ -740,7 +740,11 @@ export default function WATemplatesPage() {
       const res = await fetch('/api/wa-templates/sync', { method: 'POST' })
       const data = await res.json()
       if (res.ok) {
-        toast.success(`Synced! ${data.updated} template(s) updated.`, { id: 'sync-meta' })
+        const parts: string[] = []
+        if (data.updated) parts.push(`${data.updated} updated`)
+        if (data.imported) parts.push(`${data.imported} imported from Meta`)
+        const msg = parts.length ? `Synced! ${parts.join(', ')}.` : 'Synced! No changes.'
+        toast.success(msg, { id: 'sync-meta' })
         await fetchTemplates()
       } else {
         toast.error('Sync failed', { id: 'sync-meta' })
