@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { buildTemplatePayload } from '@/lib/wa-template-payload'
+
 export const dynamic = 'force-dynamic'
 
 const PHONE_ID = process.env.WHATSAPP_PHONE_ID
@@ -19,6 +21,9 @@ export async function POST(req: Request) {
       templateName,
       language = 'hi',
       parameters = [],
+      headerImageUrl,
+      headerTextParams = [],
+      buttonUrlParams = {},
       leadId,
     } = body
 
@@ -37,28 +42,27 @@ export async function POST(req: Request) {
     }
 
     const to = formatPhone(phone)
+    const langCode = language === 'hi' ? 'hi' : 'en_US'
 
-    const payload: any = {
-      messaging_product: 'whatsapp',
+    const dbTemplate = await db.whatsAppTemplate.findFirst({
+      where: { metaName: templateName },
+    })
+
+    const payload = buildTemplatePayload(
       to,
-      type: 'template',
-      template: {
-        name: templateName,
-        language: {
-          code: language === 'hi' ? 'hi' : 'en_US'
-        },
-      }
-    }
-
-    if (parameters.length > 0) {
-      payload.template.components = [{
-        type: 'body',
-        parameters: parameters.map((p: string) => ({
-          type: 'text',
-          text: p,
-        }))
-      }]
-    }
+      {
+        metaName: templateName,
+        language,
+        headerType: dbTemplate?.headerType || 'NONE',
+        headerMediaUrl: dbTemplate?.headerMediaUrl || null,
+        headerText: dbTemplate?.headerText || null,
+        buttonsJson: dbTemplate?.buttonsJson || null,
+      },
+      parameters,
+      headerImageUrl,
+      headerTextParams,
+      buttonUrlParams,
+    )
 
     const res = await fetch(GRAPH_URL, {
       method: 'POST',
@@ -71,13 +75,12 @@ export async function POST(req: Request) {
 
     const data = await res.json()
 
-    // Log to WhatsAppMessageLog
     await db.whatsAppMessageLog.create({
       data: {
         leadId: leadId || null,
         phone: to,
         templateName,
-        language: language === 'hi' ? 'hi' : 'en_US',
+        language: langCode,
         variables: parameters,
         status: res.ok ? 'SENT' : 'FAILED',
         messageId: data.messages?.[0]?.id || null,

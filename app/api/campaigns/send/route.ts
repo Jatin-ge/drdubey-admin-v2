@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { buildTemplatePayload } from '@/lib/wa-template-payload'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
@@ -63,6 +64,18 @@ export async function POST(req: Request) {
           const fullPhone = phone.startsWith('91')
             ? phone : `91${phone}`
 
+          const payload = buildTemplatePayload(
+            fullPhone,
+            {
+              metaName: template.metaName,
+              language: campaign.language,
+              headerType: template.headerType,
+              headerMediaUrl: template.headerMediaUrl,
+              headerText: template.headerText,
+              buttonsJson: template.buttonsJson,
+            },
+          )
+
           const res = await fetch(
             `https://graph.facebook.com/v22.0/${PHONE_ID}/messages`,
             {
@@ -71,17 +84,7 @@ export async function POST(req: Request) {
                 'Authorization': `Bearer ${TOKEN}`,
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({
-                messaging_product: 'whatsapp',
-                to: fullPhone,
-                type: 'template',
-                template: {
-                  name: template.metaName,
-                  language: {
-                    code: campaign.language === 'hi' ? 'hi' : 'en'
-                  },
-                }
-              })
+              body: JSON.stringify(payload),
             }
           )
 

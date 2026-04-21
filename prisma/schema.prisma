@@ -454,6 +454,11 @@ model WhatsAppTemplate {
   metaStatus      String?   @default("DRAFT")
   metaError       String?
   metaSubmittedAt DateTime?
+  headerType      String?   @default("NONE")
+  headerMediaUrl  String?
+  headerText      String?
+  footerText      String?
+  buttonsJson     String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }

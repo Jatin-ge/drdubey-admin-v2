@@ -33,6 +33,30 @@ function mapStatus(metaStatus, fallback) {
   return fallback || 'PENDING'
 }
 
+function extractHeader(components) {
+  const h = components?.find(c => c.type === 'HEADER')
+  if (!h) return { headerType: 'NONE', headerMediaUrl: null, headerText: null }
+  const fmt = (h.format || '').toUpperCase()
+  if (fmt === 'TEXT') {
+    return { headerType: 'TEXT', headerMediaUrl: null, headerText: h.text || null }
+  }
+  if (fmt === 'IMAGE' || fmt === 'VIDEO' || fmt === 'DOCUMENT') {
+    const url = h.example?.header_handle?.[0] || null
+    return { headerType: fmt, headerMediaUrl: url, headerText: null }
+  }
+  return { headerType: 'NONE', headerMediaUrl: null, headerText: null }
+}
+
+function extractFooter(components) {
+  return components?.find(c => c.type === 'FOOTER')?.text || null
+}
+
+function extractButtonsJson(components) {
+  const b = components?.find(c => c.type === 'BUTTONS')
+  if (!b?.buttons || b.buttons.length === 0) return null
+  return JSON.stringify(b.buttons)
+}
+
 async function main() {
   const TOKEN = process.env.WHATSAPP_API_TOKEN
   const WABA_ID = process.env.WHATSAPP_WABA_ID
@@ -81,18 +105,33 @@ async function main() {
 
     const newStatus = mapStatus(metaEntry.status, tmpl.metaStatus)
     const isApproved = metaEntry.status === 'APPROVED'
+    const header = extractHeader(metaEntry.components)
+    const footerText = extractFooter(metaEntry.components)
+    const buttonsJson = extractButtonsJson(metaEntry.components)
 
-    if (newStatus !== tmpl.metaStatus || isApproved !== tmpl.isApproved) {
+    const componentsChanged =
+      header.headerType !== tmpl.headerType ||
+      header.headerMediaUrl !== tmpl.headerMediaUrl ||
+      header.headerText !== tmpl.headerText ||
+      footerText !== tmpl.footerText ||
+      buttonsJson !== tmpl.buttonsJson
+
+    if (newStatus !== tmpl.metaStatus || isApproved !== tmpl.isApproved || componentsChanged) {
       await db.whatsAppTemplate.update({
         where: { id: tmpl.id },
         data: {
           metaStatus: newStatus,
           isApproved,
           metaError: metaEntry.status === 'REJECTED' ? 'Rejected by Meta' : null,
+          headerType: header.headerType,
+          headerMediaUrl: header.headerMediaUrl,
+          headerText: header.headerText,
+          footerText,
+          buttonsJson,
         },
       })
       updated++
-      console.log(`   ↻ Updated: ${tmpl.metaName} → ${newStatus}`)
+      console.log(`   ↻ Updated: ${tmpl.metaName} → ${newStatus}${componentsChanged ? ' (+ components)' : ''}`)
     }
     synced++
   }
@@ -111,6 +150,9 @@ async function main() {
     const category = mapCategory(meta.category)
     const status = mapStatus(meta.status, 'PENDING')
     const isApproved = meta.status === 'APPROVED'
+    const header = extractHeader(meta.components)
+    const footerText = extractFooter(meta.components)
+    const buttonsJson = extractButtonsJson(meta.components)
 
     await db.whatsAppTemplate.create({
       data: {
@@ -126,10 +168,15 @@ async function main() {
         isActive: true,
         metaStatus: status,
         metaSubmittedAt: new Date(),
+        headerType: header.headerType,
+        headerMediaUrl: header.headerMediaUrl,
+        headerText: header.headerText,
+        footerText,
+        buttonsJson,
       },
     })
     imported++
-    console.log(`   ✚ Imported: ${meta.name} (${language}, ${status})`)
+    console.log(`   ✚ Imported: ${meta.name} (${language}, ${status}, header=${header.headerType})`)
   }
 
   console.log('\n📊 Summary:')

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { extractHeader, extractFooter, extractButtonsJson } from '@/lib/wa-template-payload'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,6 +9,9 @@ const API_BASE = 'https://graph.facebook.com/v22.0'
 type MetaComponent = {
   type: string
   text?: string
+  format?: string
+  example?: any
+  buttons?: any[]
 }
 
 type MetaTemplate = {
@@ -100,14 +104,29 @@ export async function POST() {
       if (metaEntry) {
         const newStatus = mapStatus(metaEntry.status, tmpl.metaStatus)
         const isApproved = metaEntry.status === 'APPROVED'
+        const header = extractHeader(metaEntry.components)
+        const footerText = extractFooter(metaEntry.components)
+        const buttonsJson = extractButtonsJson(metaEntry.components)
 
-        if (newStatus !== tmpl.metaStatus || isApproved !== tmpl.isApproved) {
+        const componentsChanged =
+          header.headerType !== tmpl.headerType ||
+          header.headerMediaUrl !== tmpl.headerMediaUrl ||
+          header.headerText !== tmpl.headerText ||
+          footerText !== tmpl.footerText ||
+          buttonsJson !== tmpl.buttonsJson
+
+        if (newStatus !== tmpl.metaStatus || isApproved !== tmpl.isApproved || componentsChanged) {
           await db.whatsAppTemplate.update({
             where: { id: tmpl.id },
             data: {
               metaStatus: newStatus,
               isApproved,
               metaError: metaEntry.status === 'REJECTED' ? 'Rejected by Meta' : null,
+              headerType: header.headerType,
+              headerMediaUrl: header.headerMediaUrl,
+              headerText: header.headerText,
+              footerText,
+              buttonsJson,
             },
           })
           updated++
@@ -126,6 +145,9 @@ export async function POST() {
       const category = mapCategory(meta.category)
       const status = mapStatus(meta.status, 'PENDING')
       const isApproved = meta.status === 'APPROVED'
+      const header = extractHeader(meta.components)
+      const footerText = extractFooter(meta.components)
+      const buttonsJson = extractButtonsJson(meta.components)
 
       await db.whatsAppTemplate.create({
         data: {
@@ -141,6 +163,11 @@ export async function POST() {
           isActive: true,
           metaStatus: status,
           metaSubmittedAt: new Date(),
+          headerType: header.headerType,
+          headerMediaUrl: header.headerMediaUrl,
+          headerText: header.headerText,
+          footerText,
+          buttonsJson,
         },
       })
       imported++
