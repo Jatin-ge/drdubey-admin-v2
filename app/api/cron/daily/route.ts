@@ -5,7 +5,7 @@ export async function GET(req: Request) {
   const base = process.env.NEXTAUTH_URL ||
     'https://admin.drdubay.in'
 
-  const [campaigns, reviews] = await Promise.all([
+  const [campaigns, reviews, resumed] = await Promise.all([
     fetch(`${base}/api/campaigns/send`, {
       method: 'POST'
     }).then(r => r.json()).catch(e => ({
@@ -16,7 +16,12 @@ export async function GET(req: Request) {
     }).then(r => r.json()).catch(e => ({
       error: e.message
     })),
+    fetch(`${base}/api/campaigns/resume-stalled`, {
+      method: 'POST'
+    }).then(r => r.json()).catch(e => ({
+      error: e.message
+    })),
   ])
 
-  return NextResponse.json({ campaigns, reviews })
+  return NextResponse.json({ campaigns, reviews, resumed })
 }

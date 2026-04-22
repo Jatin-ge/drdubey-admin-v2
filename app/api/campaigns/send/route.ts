@@ -35,7 +35,13 @@ export async function POST(req: Request) {
         where: { id: campaign.templateId }
       })
 
-      if (!template) continue
+      if (!template) {
+        await db.campaign.update({
+          where: { id: campaign.id },
+          data: { status: 'FAILED', sentAt: new Date() },
+        })
+        continue
+      }
 
       let sentCount = 0
       let failedCount = 0

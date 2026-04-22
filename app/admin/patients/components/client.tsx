@@ -196,7 +196,7 @@ export const BillboardClient: React.FC<BillboardClientProps> = ({
   });
   const [schedulingCampaign, setSchedulingCampaign] = useState(false);
   const [sendingNow, setSendingNow] = useState(false);
-  const [sendNowResult, setSendNowResult] = useState<{ sent: number; failed: number } | null>(null);
+  const [startedCampaign, setStartedCampaign] = useState<{ campaignId: string; count: number } | null>(null);
   const [liveTemplates, setLiveTemplates] = useState<any[]>([]);
 
   useEffect(() => {
@@ -225,7 +225,7 @@ export const BillboardClient: React.FC<BillboardClientProps> = ({
       .then(r => r.json())
       .then(d => setLiveTemplates(Array.isArray(d) ? d : []))
       .catch(() => {});
-    setSendNowResult(null);
+    setStartedCampaign(null);
     setShowScheduleModal(true);
   };
 
@@ -284,54 +284,28 @@ export const BillboardClient: React.FC<BillboardClientProps> = ({
     if (!confirmed) return;
 
     setSendingNow(true);
-    setSendNowResult(null);
+    setStartedCampaign(null);
 
     try {
-      // Find template name — check DB templates first, then live templates
-      const dbTemplate = waTemplates.find(t => t.id === campaignForm.templateId);
-      const liveTemplate = liveTemplates.find(t => t.name === campaignForm.templateId);
-      const templateName = dbTemplate?.metaName || liveTemplate?.name || campaignForm.templateId;
-      const language = campaignForm.language === 'hi' ? 'hi' : 'en_US';
-
-      let sent = 0;
-      let failed = 0;
-
-      for (const patient of selectedData) {
-        if (!patient.phone) { failed++; continue; }
-
-        const phone = patient.phone.replace(/\D/g, '').replace(/^0/, '');
-        const fullPhone = phone.startsWith('91') ? phone : `91${phone}`;
-
-        try {
-          const res = await fetch('/api/whatsapp/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              phone: fullPhone,
-              templateName,
-              language,
-              parameters: [],
-              leadId: patient.id,
-            }),
-          });
-          if (res.ok) sent++;
-          else failed++;
-        } catch {
-          failed++;
-        }
-
-        // Small delay between messages
-        await new Promise(r => setTimeout(r, 100));
+      const res = await fetch('/api/campaigns/send-now', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: campaignForm.name,
+          templateId: campaignForm.templateId,
+          language: campaignForm.language,
+          city: campaignForm.city,
+          patientIds: selectedData.map(p => p.id),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to start campaign');
+        return;
       }
-
-      setSendNowResult({ sent, failed });
-      if (sent > 0) {
-        alert(`Done! ${sent} sent, ${failed} failed.`);
-      } else {
-        alert(`All ${failed} messages failed. Check template name and permissions.`);
-      }
+      setStartedCampaign({ campaignId: data.campaignId, count: data.patientCount });
     } catch {
-      alert('Failed to send messages');
+      alert('Failed to start campaign');
     } finally {
       setSendingNow(false);
     }
@@ -819,14 +793,23 @@ export const BillboardClient: React.FC<BillboardClientProps> = ({
               </div>
             )}
 
-            {sendNowResult && (
+            {startedCampaign && (
               <div style={{
                 marginTop: '12px', padding: '12px', borderRadius: '8px',
-                backgroundColor: sendNowResult.failed === 0 ? '#f0fdf4' : '#fef9c3',
-                border: `1px solid ${sendNowResult.failed === 0 ? '#bbf7d0' : '#fde68a'}`,
+                backgroundColor: '#f0fdf4',
+                border: '1px solid #bbf7d0',
               }}>
-                <p style={{ fontSize: '13px', fontWeight: '500', color: '#374151' }}>
-                  Sent: {sendNowResult.sent} | Failed: {sendNowResult.failed}
+                <p style={{ fontSize: '13px', fontWeight: '500', color: '#166534', marginBottom: '4px' }}>
+                  ✓ Campaign started — {startedCampaign.count} patients processing in background
+                </p>
+                <p style={{ fontSize: '12px', color: '#374151' }}>
+                  You can safely close this page.{' '}
+                  <a
+                    href={`/admin/campaigns/${startedCampaign.campaignId}`}
+                    style={{ color: '#2563eb', textDecoration: 'underline' }}
+                  >
+                    View progress →
+                  </a>
                 </p>
               </div>
             )}

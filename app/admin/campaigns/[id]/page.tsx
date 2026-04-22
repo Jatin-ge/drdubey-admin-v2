@@ -34,10 +34,31 @@ export default function CampaignDetailPage() {
   const [logFilter, setLogFilter] = useState<'all' | 'SENT' | 'FAILED'>('all')
 
   useEffect(() => {
-    fetch(`/api/campaigns/${params.id}`)
-      .then(r => r.json())
-      .then(d => { setCampaign(d); setLoading(false) })
-      .catch(() => setLoading(false))
+    let cancelled = false
+    let intervalId: ReturnType<typeof setInterval> | null = null
+
+    const load = () => {
+      fetch(`/api/campaigns/${params.id}`)
+        .then(r => r.json())
+        .then(d => {
+          if (cancelled) return
+          setCampaign(d)
+          setLoading(false)
+          if (d?.status !== 'SENDING' && intervalId) {
+            clearInterval(intervalId)
+            intervalId = null
+          }
+        })
+        .catch(() => { if (!cancelled) setLoading(false) })
+    }
+
+    load()
+    intervalId = setInterval(load, 5000)
+
+    return () => {
+      cancelled = true
+      if (intervalId) clearInterval(intervalId)
+    }
   }, [params.id])
 
   if (loading) {
