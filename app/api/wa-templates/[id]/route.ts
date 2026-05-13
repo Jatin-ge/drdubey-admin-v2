@@ -29,6 +29,7 @@ export async function PUT(
       headerType: (body.headerType || 'NONE').toUpperCase(),
       headerText: body.headerText?.trim() || null,
       headerMediaUrl: body.headerMediaUrl?.trim() || null,
+      headerMediaSendUrl: body.headerMediaSendUrl?.trim() || null,
       footerText: body.footerText?.trim() || null,
       isApproved: body.isApproved,
       isActive: body.isActive ?? true,

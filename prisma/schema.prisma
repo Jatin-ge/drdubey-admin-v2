@@ -456,6 +456,12 @@ model WhatsAppTemplate {
   metaSubmittedAt DateTime?
   headerType      String?   @default("NONE")
   headerMediaUrl  String?
+  // Publicly-accessible HTTPS URL used when SENDING a message with this
+  // template. `headerMediaUrl` may contain a Meta resumable-upload handle
+  // (created via /api/wa-templates/media), which works for template
+  // creation but cannot be used as `link` at send time. If unset and the
+  // template has a media header, sends will skip the header with a warning.
+  headerMediaSendUrl String?
   headerText      String?
   footerText      String?
   buttonsJson     String?

@@ -48,13 +48,22 @@ export async function POST(req: Request) {
       where: { metaName: templateName },
     })
 
+    // headerImageUrl param wins (explicit override). Otherwise prefer the
+    // template's send-time public URL, falling back to headerMediaUrl only
+    // if that's an https URL (not a Meta resumable handle).
+    const sendMediaUrl =
+      dbTemplate?.headerMediaSendUrl ||
+      (dbTemplate?.headerMediaUrl?.startsWith('http')
+        ? dbTemplate.headerMediaUrl
+        : null)
+
     const payload = buildTemplatePayload(
       to,
       {
         metaName: templateName,
         language,
         headerType: dbTemplate?.headerType || 'NONE',
-        headerMediaUrl: dbTemplate?.headerMediaUrl || null,
+        headerMediaUrl: sendMediaUrl,
         headerText: dbTemplate?.headerText || null,
         buttonsJson: dbTemplate?.buttonsJson || null,
       },

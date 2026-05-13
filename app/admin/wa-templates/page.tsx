@@ -25,6 +25,7 @@ interface WATemplate {
   headerType?: string
   headerText?: string
   headerMediaUrl?: string
+  headerMediaSendUrl?: string
   footerText?: string
   buttonsJson?: string | null
   isApproved: boolean
@@ -447,6 +448,9 @@ function TemplateForm({
   const [headerMediaUrl, setHeaderMediaUrl] = useState(
     initial?.headerMediaUrl || ''
   )
+  const [headerMediaSendUrl, setHeaderMediaSendUrl] = useState(
+    initial?.headerMediaSendUrl || ''
+  )
   const [headerFileName, setHeaderFileName] = useState('')
   const [uploadingMedia, setUploadingMedia] = useState(false)
   const [footerText, setFooterText] = useState(
@@ -577,6 +581,9 @@ function TemplateForm({
       headerMediaUrl:
         ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType)
           ? headerMediaUrl : '',
+      headerMediaSendUrl:
+        ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType)
+          ? headerMediaSendUrl : '',
       footerText,
       buttons,
       skipMetaSubmit,
@@ -762,6 +769,52 @@ function TemplateForm({
                     {headerFileName ? ` — ${headerFileName}` : ''}
                   </p>
                 )}
+
+                {/* Public send URL — required for the message to actually
+                    arrive with the media attached. The resumable handle
+                    above is only used during template creation; Meta
+                    needs a publicly-fetchable URL when sending. */}
+                <div style={{ marginTop: '10px' }}>
+                  <label style={{
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    color: '#374151',
+                    marginBottom: '4px',
+                    display: 'block',
+                  }}>
+                    Public media URL{' '}
+                    <span style={{
+                      color: '#dc2626',
+                      fontWeight: '400',
+                      textTransform: 'none',
+                    }}>
+                      (required for sending the same image in messages)
+                    </span>
+                  </label>
+                  <input
+                    type="url"
+                    value={headerMediaSendUrl}
+                    onChange={e => setHeaderMediaSendUrl(e.target.value)}
+                    placeholder="https://admin.drdubay.in/images/wa-headers/poster.jpg"
+                    style={{
+                      ...inputStyle,
+                      fontFamily: 'monospace',
+                      fontSize: '12px',
+                      padding: '8px 10px',
+                    }}
+                  />
+                  <p style={{
+                    fontSize: '11px',
+                    color: '#94a3b8',
+                    marginTop: '4px',
+                    lineHeight: 1.4,
+                  }}>
+                    Paste any publicly-accessible HTTPS URL hosting the same
+                    file. Without this, messages will send WITHOUT the media
+                    header. You can host images under public/images/wa-headers/
+                    or use any image hosting service.
+                  </p>
+                </div>
               </div>
             )}
           </div>

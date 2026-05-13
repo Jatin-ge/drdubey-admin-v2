@@ -111,6 +111,7 @@ export async function POST(req: Request) {
         headerType,
         headerText: body.headerText?.trim() || null,
         headerMediaUrl: body.headerMediaUrl?.trim() || null,
+        headerMediaSendUrl: body.headerMediaSendUrl?.trim() || null,
         footerText: body.footerText?.trim() || null,
         buttonsJson,
         isApproved: false,

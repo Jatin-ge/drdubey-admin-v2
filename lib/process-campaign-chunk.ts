@@ -90,12 +90,20 @@ export async function processCampaignChunk(
   const batchIds = remaining.slice(0, CHUNK_SIZE)
   const patients = await db.lead.findMany({
     where: { id: { in: batchIds } },
-    select: { id: true, name: true, phone: true },
+    select: { id: true, name: true, phone: true, cities: true },
   })
   const patientMap = new Map(patients.map(p => [p.id, p]))
 
   const PHONE_ID = process.env.WHATSAPP_PHONE_ID
   const TOKEN = process.env.WHATSAPP_API_TOKEN
+
+  // Count {{N}} placeholders in the template body so we send the exact
+  // number of body parameters Meta expects. Mismatched count returns
+  // error 132012 "Parameter format does not match" and the entire batch
+  // would otherwise fail silently.
+  const templateBody =
+    (campaign.language === 'hi' ? template.bodyHi : template.bodyEn) || ''
+  const placeholderCount = (templateBody.match(/\{\{\d+\}\}/g) || []).length
 
   for (const patientId of batchIds) {
     const patient = patientMap.get(patientId)
@@ -112,16 +120,38 @@ export async function processCampaignChunk(
       const phone = patient.phone.replace(/\D/g, '').replace(/^0/, '')
       fullPhone = phone.startsWith('91') ? phone : `91${phone}`
 
+      // Fill body parameters by convention used elsewhere in the app:
+      //   {{1}} → patient name, {{2}} → city. Pad the rest with '' so the
+      //   parameter count always matches what the template declared.
+      const bodyParameters: string[] = []
+      for (let i = 0; i < placeholderCount; i++) {
+        if (i === 0) bodyParameters.push(patient.name || '')
+        else if (i === 1) bodyParameters.push(campaign.city || patient.cities || '')
+        else bodyParameters.push('')
+      }
+
+      // For sending, prefer the publicly-accessible URL. The Meta
+      // resumable handle stored in headerMediaUrl can't be used as `link`
+      // at send time — Meta returns error 132012.
+      const sendMediaUrl =
+        template.headerMediaSendUrl ||
+        // Fall back to headerMediaUrl only if it looks like an https URL
+        // (not a "4::..." resumable handle).
+        (template.headerMediaUrl?.startsWith('http')
+          ? template.headerMediaUrl
+          : null)
+
       const payload = buildTemplatePayload(
         fullPhone,
         {
           metaName: template.metaName,
           language: campaign.language,
           headerType: template.headerType,
-          headerMediaUrl: template.headerMediaUrl,
+          headerMediaUrl: sendMediaUrl,
           headerText: template.headerText,
           buttonsJson: template.buttonsJson,
         },
+        bodyParameters,
       )
 
       const res = await fetch(
@@ -149,7 +179,7 @@ export async function processCampaignChunk(
           phone: fullPhone,
           templateName: template.metaName || template.name,
           language: campaign.language || 'hi',
-          variables: [],
+          variables: bodyParameters,
           status,
           messageId,
           errorMsg,
