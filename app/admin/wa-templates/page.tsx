@@ -12,7 +12,6 @@ import {
   MAX_BUTTON_TEXT,
 } from '@/lib/wa-template-buttons'
 import { formatWhatsAppText } from '@/lib/wa-format'
-import { UploadButton } from '@/lib/uploadthing'
 
 interface WATemplate {
   id: string
@@ -464,6 +463,9 @@ function TemplateForm({
       ? initial.headerMediaUrl
       : '')
   const [mediaUrl, setMediaUrl] = useState(initialUrl || '')
+  const [uploading, setUploading] = useState(false)
+  const [uploadPct, setUploadPct] = useState(0)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [footerText, setFooterText] = useState(
     initial?.footerText || ''
   )
@@ -520,6 +522,58 @@ function TemplateForm({
       const newEnd = newStart + inner.length
       ta.setSelectionRange(newStart, newEnd)
     })
+  }
+
+  // Native R2-backed file upload. Uses XMLHttpRequest because the
+  // fetch() API can't report upload progress in browsers (only download
+  // progress). Stays under our own infrastructure — no UploadThing /
+  // third-party token needed.
+  const uploadFile = (file: File) => {
+    if (uploading) return
+    if (!['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType)) return
+
+    setUploading(true)
+    setUploadPct(0)
+    toast.loading(`Uploading ${file.name}…`, {
+      id: 'media-up', duration: Infinity,
+    })
+
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('format', headerType)
+
+    const xhr = new XMLHttpRequest()
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable) return
+      const pct = Math.round((e.loaded / e.total) * 100)
+      setUploadPct(pct)
+      toast.loading(`Uploading ${file.name}… ${pct}%`, {
+        id: 'media-up', duration: Infinity,
+      })
+    }
+    xhr.onerror = () => {
+      setUploading(false)
+      toast.error('Upload failed: network error', {
+        id: 'media-up', duration: 6000,
+      })
+    }
+    xhr.onload = () => {
+      setUploading(false)
+      let body: { url?: string; error?: string } = {}
+      try { body = JSON.parse(xhr.responseText) } catch {}
+      if (xhr.status === 200 && body.url) {
+        setMediaUrl(body.url)
+        toast.success(`✓ Uploaded — ${file.name}`, {
+          id: 'media-up', duration: 4000,
+        })
+      } else {
+        toast.error(`Upload failed: ${body.error || `HTTP ${xhr.status}`}`, {
+          id: 'media-up', duration: 6000,
+        })
+      }
+    }
+    xhr.open('POST', '/api/wa-templates/media')
+    xhr.send(fd)
   }
 
   const previewText = language === 'hi'
@@ -726,72 +780,58 @@ function TemplateForm({
                     a public utfs.io URL, and the URL field below auto-
                     populates. Teammates don't have to deal with hosting,
                     git commits, or URL strings. */}
-                <UploadButton
-                  endpoint="waTemplateMedia"
-                  onBeforeUploadBegin={(files) => {
-                    // Toast appears the moment a file is picked. Same toast
-                    // ID is kept across loading -> success/error so it
-                    // updates in place instead of stacking three pop-ups.
-                    toast.loading(
-                      `Uploading ${files[0]?.name || 'file'}…`,
-                      { id: 'wa-media-upload', duration: Infinity },
-                    )
-                    return files
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={
+                    headerType === 'IMAGE' ? 'image/jpeg,image/png'
+                      : headerType === 'VIDEO' ? 'video/mp4,video/3gpp'
+                        : 'application/pdf'
+                  }
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    if (f) uploadFile(f)
+                    // Reset the input so picking the same filename twice
+                    // still triggers the change event.
+                    e.target.value = ''
                   }}
-                  onUploadProgress={(p) => {
-                    toast.loading(`Uploading… ${Math.round(p)}%`, {
-                      id: 'wa-media-upload',
-                      duration: Infinity,
-                    })
-                  }}
-                  onClientUploadComplete={(res) => {
-                    const uploaded = res?.[0]
-                    if (uploaded?.ufsUrl || uploaded?.url) {
-                      const url = (uploaded.ufsUrl || uploaded.url) as string
-                      setMediaUrl(url)
-                      toast.success(`✓ Uploaded — ${uploaded.name}`, {
-                        id: 'wa-media-upload',
-                        duration: 4000,
-                      })
-                    } else {
-                      toast.error('Upload completed but no URL returned', {
-                        id: 'wa-media-upload',
-                        duration: 5000,
-                      })
-                    }
-                  }}
-                  onUploadError={(err: Error) => {
-                    toast.error(`Upload failed: ${err.message}`, {
-                      id: 'wa-media-upload',
-                      duration: 6000,
-                    })
-                  }}
-                  appearance={{
-                    button: ({ isUploading }) => ({
-                      backgroundColor: isUploading ? '#94a3b8' : '#2563eb',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      padding: '8px 16px',
-                      borderRadius: '8px',
-                      cursor: isUploading ? 'wait' : 'pointer',
-                      width: '200px',
-                    }),
-                    allowedContent: { color: '#94a3b8', fontSize: '11px' },
-                  }}
-                  content={{
-                    button: ({ ready, isUploading, uploadProgress }) => {
-                      if (isUploading) {
-                        return `Uploading ${Math.round(uploadProgress ?? 0)}%…`
-                      }
-                      if (!ready) return 'Loading…'
-                      const label =
-                        headerType === 'IMAGE' ? 'image'
-                          : headerType === 'VIDEO' ? 'video'
-                            : 'PDF'
-                      return `📎 Upload ${label}`
-                    },
-                  }}
+                  style={{ display: 'none' }}
                 />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: uploading ? '#94a3b8' : '#2563eb',
+                    color: 'white',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: uploading ? 'wait' : 'pointer',
+                    minWidth: '220px',
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {/* Progress bar fill overlay during upload */}
+                  {uploading && (
+                    <div style={{
+                      position: 'absolute',
+                      left: 0, top: 0, bottom: 0,
+                      width: `${uploadPct}%`,
+                      backgroundColor: 'rgba(255,255,255,0.18)',
+                      transition: 'width 200ms ease',
+                    }} />
+                  )}
+                  <span style={{ position: 'relative' }}>
+                    {uploading
+                      ? `Uploading… ${uploadPct}%`
+                      : `📎 Upload ${headerType === 'IMAGE' ? 'image' : headerType === 'VIDEO' ? 'video' : 'PDF'}`
+                    }
+                  </span>
+                </button>
 
                 {/* Read-only-feeling URL box. Editable in case someone
                     wants to paste a URL they already host elsewhere. */}
