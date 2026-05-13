@@ -26,11 +26,15 @@ export async function POST(req: Request) {
       select: { id: true },
     })
 
+    const secret = process.env.CAMPAIGN_INTERNAL_SECRET
     const base = getBaseUrl(req)
     for (const c of stalled) {
       fetch(`${base}/api/campaigns/send-chunk`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(secret ? { 'Authorization': `Bearer ${secret}` } : {}),
+        },
         body: JSON.stringify({ campaignId: c.id }),
       }).catch(() => {})
     }
