@@ -12,6 +12,7 @@ import {
   MAX_BUTTON_TEXT,
 } from '@/lib/wa-template-buttons'
 import { formatWhatsAppText } from '@/lib/wa-format'
+import { UploadButton } from '@/lib/uploadthing'
 
 interface WATemplate {
   id: string
@@ -721,43 +722,69 @@ function TemplateForm({
 
             {isMediaHeader && (
               <div style={{ marginTop: '8px' }}>
+                {/* Primary: just upload the file. UploadThing hosts it at
+                    a public utfs.io URL, and the URL field below auto-
+                    populates. Teammates don't have to deal with hosting,
+                    git commits, or URL strings. */}
+                <UploadButton
+                  endpoint="waTemplateMedia"
+                  onClientUploadComplete={(res) => {
+                    const uploaded = res?.[0]
+                    if (uploaded?.url) {
+                      setMediaUrl(uploaded.url)
+                      toast.success(`Uploaded — ${uploaded.name}`)
+                    }
+                  }}
+                  onUploadError={(err: Error) => {
+                    toast.error(`Upload failed: ${err.message}`)
+                  }}
+                  appearance={{
+                    button: {
+                      backgroundColor: '#2563eb',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                    },
+                    allowedContent: { color: '#94a3b8', fontSize: '11px' },
+                  }}
+                  content={{
+                    button: ({ ready }) => ready
+                      ? `📎 Upload ${headerType === 'IMAGE' ? 'image' : headerType === 'VIDEO' ? 'video' : 'PDF'}`
+                      : 'Loading…',
+                  }}
+                />
+
+                {/* Read-only-feeling URL box. Editable in case someone
+                    wants to paste a URL they already host elsewhere. */}
                 <input
                   type="url"
                   value={mediaUrl}
                   onChange={e => setMediaUrl(e.target.value)}
-                  placeholder={
-                    headerType === 'IMAGE'
-                      ? 'https://admin.drdubay.in/images/wa-headers/poster.jpg'
-                      : headerType === 'VIDEO'
-                        ? 'https://admin.drdubay.in/media/clip.mp4'
-                        : 'https://admin.drdubay.in/media/leaflet.pdf'
-                  }
+                  placeholder="URL will appear here after upload — or paste your own"
                   style={{
                     ...inputStyle,
+                    marginTop: '8px',
                     fontFamily: 'monospace',
                     fontSize: '12px',
                     padding: '8px 10px',
-                    borderColor: mediaUrlError ? '#dc2626' : '#e2e8f0',
+                    borderColor: mediaUrlError ? '#dc2626'
+                      : mediaUrl ? '#16a34a' : '#e2e8f0',
+                    backgroundColor: mediaUrl && !mediaUrlError ? '#f0fdf4' : 'white',
                   }}
                 />
+
                 <p style={{
                   fontSize: '11px',
                   color: '#94a3b8',
                   marginTop: '6px',
                   lineHeight: 1.4,
                 }}>
-                  {headerType === 'IMAGE' && 'JPG or PNG, hosted at any public HTTPS URL.'}
-                  {headerType === 'VIDEO' && 'MP4 or 3GPP, hosted at any public HTTPS URL.'}
-                  {headerType === 'DOCUMENT' && 'PDF, hosted at any public HTTPS URL.'}
-                  {' '}You can also drop the file into{' '}
-                  <code style={{
-                    fontFamily: 'monospace',
-                    backgroundColor: '#f1f5f9',
-                    padding: '1px 4px',
-                    borderRadius: '3px',
-                  }}>public/images/wa-headers/</code>
-                  {' '}in this repo and reference it as
-                  {' '}<code style={{ fontFamily: 'monospace' }}>https://admin.drdubay.in/images/wa-headers/&lt;filename&gt;</code>.
+                  {headerType === 'IMAGE' && 'JPG / PNG up to 5 MB.'}
+                  {headerType === 'VIDEO' && 'MP4 / 3GPP up to 16 MB.'}
+                  {headerType === 'DOCUMENT' && 'PDF up to 100 MB.'}
+                  {' '}This file is what your recipients see at the top of
+                  the message.
                 </p>
                 {mediaUrlError && (
                   <p style={{
