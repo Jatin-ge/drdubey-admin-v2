@@ -728,30 +728,68 @@ function TemplateForm({
                     git commits, or URL strings. */}
                 <UploadButton
                   endpoint="waTemplateMedia"
+                  onBeforeUploadBegin={(files) => {
+                    // Toast appears the moment a file is picked. Same toast
+                    // ID is kept across loading -> success/error so it
+                    // updates in place instead of stacking three pop-ups.
+                    toast.loading(
+                      `Uploading ${files[0]?.name || 'file'}…`,
+                      { id: 'wa-media-upload', duration: Infinity },
+                    )
+                    return files
+                  }}
+                  onUploadProgress={(p) => {
+                    toast.loading(`Uploading… ${Math.round(p)}%`, {
+                      id: 'wa-media-upload',
+                      duration: Infinity,
+                    })
+                  }}
                   onClientUploadComplete={(res) => {
                     const uploaded = res?.[0]
-                    if (uploaded?.url) {
-                      setMediaUrl(uploaded.url)
-                      toast.success(`Uploaded — ${uploaded.name}`)
+                    if (uploaded?.ufsUrl || uploaded?.url) {
+                      const url = (uploaded.ufsUrl || uploaded.url) as string
+                      setMediaUrl(url)
+                      toast.success(`✓ Uploaded — ${uploaded.name}`, {
+                        id: 'wa-media-upload',
+                        duration: 4000,
+                      })
+                    } else {
+                      toast.error('Upload completed but no URL returned', {
+                        id: 'wa-media-upload',
+                        duration: 5000,
+                      })
                     }
                   }}
                   onUploadError={(err: Error) => {
-                    toast.error(`Upload failed: ${err.message}`)
+                    toast.error(`Upload failed: ${err.message}`, {
+                      id: 'wa-media-upload',
+                      duration: 6000,
+                    })
                   }}
                   appearance={{
-                    button: {
-                      backgroundColor: '#2563eb',
+                    button: ({ isUploading }) => ({
+                      backgroundColor: isUploading ? '#94a3b8' : '#2563eb',
                       fontSize: '13px',
                       fontWeight: 600,
                       padding: '8px 16px',
                       borderRadius: '8px',
-                    },
+                      cursor: isUploading ? 'wait' : 'pointer',
+                      width: '200px',
+                    }),
                     allowedContent: { color: '#94a3b8', fontSize: '11px' },
                   }}
                   content={{
-                    button: ({ ready }) => ready
-                      ? `📎 Upload ${headerType === 'IMAGE' ? 'image' : headerType === 'VIDEO' ? 'video' : 'PDF'}`
-                      : 'Loading…',
+                    button: ({ ready, isUploading, uploadProgress }) => {
+                      if (isUploading) {
+                        return `Uploading ${Math.round(uploadProgress ?? 0)}%…`
+                      }
+                      if (!ready) return 'Loading…'
+                      const label =
+                        headerType === 'IMAGE' ? 'image'
+                          : headerType === 'VIDEO' ? 'video'
+                            : 'PDF'
+                      return `📎 Upload ${label}`
+                    },
                   }}
                 />
 
