@@ -129,17 +129,6 @@ async function applyStatusUpdate(s: MetaStatus) {
   const newRank = STATUS_RANK[newStatus] ?? 0
   if (!newRank) return
 
-  // Find the matching log row by messageId (the wamid we stored on send).
-  const row = await db.whatsAppMessageLog.findFirst({
-    where: { messageId: s.id },
-    select: { id: true, status: true },
-  })
-  if (!row) return
-
-  const currentRank = STATUS_RANK[row.status?.toUpperCase() || ''] ?? 0
-  // Don't downgrade. FAILED always wins.
-  if (newStatus !== 'FAILED' && newRank <= currentRank) return
-
   const errorMsg =
     newStatus === 'FAILED'
       ? s.errors?.[0]?.message ||
@@ -147,11 +136,47 @@ async function applyStatusUpdate(s: MetaStatus) {
         `Failed (code ${s.errors?.[0]?.code ?? '?'})`
       : undefined
 
-  await db.whatsAppMessageLog.update({
-    where: { id: row.id },
-    data: {
-      status: newStatus,
-      ...(errorMsg ? { errorMsg } : {}),
-    },
+  // Update the per-message audit log (used by /admin/whatsapp/history)
+  const msgLog = await db.whatsAppMessageLog.findFirst({
+    where: { messageId: s.id },
+    select: { id: true, status: true },
   })
+  if (msgLog) {
+    const curRank = STATUS_RANK[msgLog.status?.toUpperCase() || ''] ?? 0
+    if (newStatus === 'FAILED' || newRank > curRank) {
+      await db.whatsAppMessageLog.update({
+        where: { id: msgLog.id },
+        data: {
+          status: newStatus,
+          ...(errorMsg ? { errorMsg } : {}),
+        },
+      })
+    }
+  }
+
+  // Also update the matching CampaignLog row so campaign detail pages
+  // reflect the full delivery lifecycle (SENT -> DELIVERED -> READ).
+  const campaignRow = await db.campaignLog.findFirst({
+    where: { messageId: s.id },
+    select: { id: true, status: true },
+  })
+  if (campaignRow) {
+    const curRank = STATUS_RANK[campaignRow.status?.toUpperCase() || ''] ?? 0
+    if (newStatus === 'FAILED' || newRank > curRank) {
+      const now = new Date()
+      await db.campaignLog.update({
+        where: { id: campaignRow.id },
+        data: {
+          status: newStatus,
+          ...(newStatus === 'DELIVERED' ? { deliveredAt: now } : {}),
+          ...(newStatus === 'READ' ? {
+            // A "read" event implies delivery too — backfill if missing.
+            readAt: now,
+            ...(campaignRow.status === 'SENT' ? { deliveredAt: now } : {}),
+          } : {}),
+          ...(errorMsg ? { error: errorMsg } : {}),
+        },
+      })
+    }
+  }
 }

@@ -9,14 +9,39 @@ export async function GET(
   try {
     const campaign = await db.campaign.findUnique({
       where: { id: params.id },
-      include: { logs: true }
+      include: { logs: { orderBy: { createdAt: 'asc' } } },
     })
-    return NextResponse.json(campaign)
-  } catch (e) {
-    return NextResponse.json(
-      { error: 'Not found' },
-      { status: 404 }
-    )
+    if (!campaign) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+
+    // Derive live lifecycle counts from CampaignLog rows. The Campaign
+    // table's sentCount/failedCount columns are written at send time and
+    // don't track webhook-driven upgrades (DELIVERED, READ), so the
+    // dashboard would otherwise stay stuck on the moment-of-sending view.
+    let sent = 0       // Meta accepted — covers SENT + DELIVERED + READ
+    let delivered = 0  // reached device (status DELIVERED or READ)
+    let read = 0       // recipient opened (status READ)
+    let failed = 0
+    for (const l of campaign.logs) {
+      const s = (l.status || '').toUpperCase()
+      if (s === 'FAILED') failed++
+      else if (s === 'READ') { read++; delivered++; sent++ }
+      else if (s === 'DELIVERED') { delivered++; sent++ }
+      else if (s === 'SENT') sent++
+    }
+
+    return NextResponse.json({
+      ...campaign,
+      // Override the static columns with the live derived counts so the
+      // UI doesn't have to know about the two-source quirk.
+      sentCount: sent,
+      failedCount: failed,
+      deliveredCount: delivered,
+      readCount: read,
+    })
+  } catch {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 }
 
@@ -26,13 +51,11 @@ export async function DELETE(
 ) {
   try {
     await db.campaign.delete({
-      where: { id: params.id }
+      where: { id: params.id },
     })
     return NextResponse.json({ success: true })
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e.message },
-      { status: 500 }
-    )
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Unknown error'
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

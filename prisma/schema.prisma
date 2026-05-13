@@ -433,10 +433,21 @@ model CampaignLog {
   patientId   String
   patientName String
   phone       String
+  // Full delivery lifecycle: PENDING -> SENT (Meta accepted) -> DELIVERED
+  // (recipient device received) -> READ (recipient opened) | FAILED.
+  // Webhook handler at /api/whatsapp/webhook upgrades this column.
   status      String    @default("PENDING")
+  // The wamid Meta returned at send time; the webhook matches incoming
+  // status events back to this row using messageId so we know which
+  // CampaignLog row each delivery callback refers to.
+  messageId   String?
   sentAt      DateTime?
+  deliveredAt DateTime?
+  readAt      DateTime?
   error       String?
   createdAt   DateTime  @default(now())
+
+  @@index([messageId])
 }
 
 model WhatsAppTemplate {

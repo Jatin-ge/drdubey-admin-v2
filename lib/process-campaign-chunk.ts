@@ -198,6 +198,7 @@ export async function processCampaignChunk(
         patientName: patient?.name || '',
         phone: patient?.phone || fullPhone || '',
         status,
+        messageId,
         error: errorMsg,
         sentAt: status === 'SENT' ? new Date() : null,
       },
