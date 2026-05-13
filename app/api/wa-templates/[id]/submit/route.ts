@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { buildMetaComponents } from '@/lib/wa-template-components'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,13 +67,14 @@ export async function POST(
       : template.category === 'AUTHENTICATION' ? 'AUTHENTICATION'
       : 'UTILITY'
 
-    // 3. Build components
-    const components = [
-      {
-        type: 'BODY',
-        text: bodyText.trim(),
-      },
-    ]
+    // 3. Build components (header + body + footer + buttons, per template fields)
+    const components = buildMetaComponents(bodyText, {
+      headerType: template.headerType,
+      headerText: template.headerText,
+      headerMediaUrl: template.headerMediaUrl,
+      footerText: template.footerText,
+      buttonsJson: template.buttonsJson,
+    })
 
     // 4. Submit to Meta
     const payload = {

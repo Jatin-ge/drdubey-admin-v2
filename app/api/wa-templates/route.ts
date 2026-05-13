@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { buildMetaComponents } from '@/lib/wa-template-components'
+import {
+  validateButtons,
+  serializeButtons,
+  type TemplateButton,
+} from '@/lib/wa-template-buttons'
 export const dynamic = 'force-dynamic'
 
 const API_BASE = 'https://graph.facebook.com/v22.0'
@@ -54,6 +60,43 @@ export async function POST(req: Request) {
       )
     }
 
+    const headerType = (body.headerType || 'NONE').toUpperCase()
+    if (
+      ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType) &&
+      !body.headerMediaUrl?.trim()
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            `Header type ${headerType} requires headerMediaUrl ` +
+            `(upload via /api/wa-templates/media first)`,
+        },
+        { status: 400 }
+      )
+    }
+    if (headerType === 'TEXT' && !body.headerText?.trim()) {
+      return NextResponse.json(
+        { error: 'Header type TEXT requires headerText' },
+        { status: 400 }
+      )
+    }
+
+    // Buttons: validate and serialize. Empty array = no buttons (cleared
+    // in the form). Undefined would mean "client didn't send the field"
+    // but on create that's effectively no buttons too.
+    const incomingButtons: TemplateButton[] = Array.isArray(body.buttons)
+      ? body.buttons
+      : []
+    const buttonsCheck = validateButtons(incomingButtons)
+    if (!buttonsCheck.ok) {
+      return NextResponse.json({ error: buttonsCheck.error }, { status: 400 })
+    }
+    const buttonsJson = incomingButtons.length
+      ? serializeButtons(incomingButtons)
+      : null
+
+    const skipMetaSubmit = body.skipMetaSubmit === true
+
     // 1. Save to DB first
     const template = await db.whatsAppTemplate.create({
       data: {
@@ -65,18 +108,31 @@ export async function POST(req: Request) {
         bodyHi: body.bodyHi?.trim() || '',
         variables: Array.isArray(body.variables) ? body.variables : [],
         metaName,
+        headerType,
+        headerText: body.headerText?.trim() || null,
+        headerMediaUrl: body.headerMediaUrl?.trim() || null,
+        footerText: body.footerText?.trim() || null,
+        buttonsJson,
         isApproved: false,
         isActive: true,
         metaStatus: 'DRAFT',
       }
     })
 
-    // 2. Auto-submit to Meta
-    if (TOKEN && WABA_ID) {
+    // 2. Auto-submit to Meta (unless caller explicitly opted out)
+    if (TOKEN && WABA_ID && !skipMetaSubmit) {
       try {
         const metaLanguage = language === 'hi' ? 'hi' : 'en_US'
         const metaCategory = ['MARKETING', 'UTILITY', 'AUTHENTICATION'].includes(body.category)
           ? body.category : 'UTILITY'
+
+        const components = buildMetaComponents(bodyText, {
+          headerType,
+          headerText: body.headerText,
+          headerMediaUrl: body.headerMediaUrl,
+          footerText: body.footerText,
+          buttonsJson,
+        })
 
         const res = await fetch(
           `${API_BASE}/${WABA_ID}/message_templates`,
@@ -90,7 +146,7 @@ export async function POST(req: Request) {
               name: metaName,
               language: metaLanguage,
               category: metaCategory,
-              components: [{ type: 'BODY', text: bodyText }],
+              components,
             }),
           }
         )
@@ -98,7 +154,6 @@ export async function POST(req: Request) {
         const data = await res.json()
 
         if (res.ok) {
-          // Submitted successfully
           await db.whatsAppTemplate.update({
             where: { id: template.id },
             data: {
@@ -109,7 +164,6 @@ export async function POST(req: Request) {
           })
           template.metaStatus = 'PENDING'
         } else {
-          // Submission failed
           await db.whatsAppTemplate.update({
             where: { id: template.id },
             data: {

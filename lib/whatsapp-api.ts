@@ -10,6 +10,9 @@ function getPhoneId() {
 function getWabaId() {
   return process.env.WHATSAPP_WABA_ID || '';
 }
+function getAppId() {
+  return process.env.WHATSAPP_APP_ID || process.env.META_APP_ID || '';
+}
 
 interface WhatsAppTemplate {
   name: string;
@@ -204,6 +207,59 @@ export const whatsappApi = {
       console.error("Media upload error:", error);
       throw error;
     }
-  }
+  },
+
+  // Resumable Upload API — required for template HEADER media.
+  // Returns a handle string (starts with "4::...") to use as header_handle.
+  // Phone-number media IDs do NOT work for template creation; Meta requires
+  // an App-level resumable upload handle.
+  async uploadResumable(file: File, mimeType: string) {
+    const appId = getAppId();
+    const token = getToken();
+    if (!appId) {
+      throw new Error(
+        "WHATSAPP_APP_ID (or META_APP_ID) env var is missing. " +
+        "Template header media requires the App-level Resumable Upload API."
+      );
+    }
+
+    // Step 1: Create upload session
+    const sessionUrl =
+      `${WHATSAPP_API_BASE}/${API_VERSION}/${appId}/uploads` +
+      `?file_length=${file.size}` +
+      `&file_type=${encodeURIComponent(mimeType)}` +
+      `&access_token=${token}`;
+
+    const sessionRes = await fetch(sessionUrl, { method: 'POST' });
+    const sessionData = await sessionRes.json();
+    if (!sessionRes.ok || !sessionData.id) {
+      throw new Error(
+        sessionData.error?.message ||
+        `Failed to start resumable upload (status ${sessionRes.status})`
+      );
+    }
+
+    // Step 2: Upload file binary to the session
+    const uploadUrl = `${WHATSAPP_API_BASE}/${API_VERSION}/${sessionData.id}`;
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    const uploadRes = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `OAuth ${token}`,
+        'file_offset': '0',
+      },
+      body: buffer,
+    });
+    const uploadData = await uploadRes.json();
+    if (!uploadRes.ok || !uploadData.h) {
+      throw new Error(
+        uploadData.error?.message ||
+        `Resumable upload failed (status ${uploadRes.status})`
+      );
+    }
+
+    return uploadData.h as string;
+  },
 
 };

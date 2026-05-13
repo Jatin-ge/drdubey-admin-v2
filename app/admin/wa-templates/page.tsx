@@ -1,6 +1,17 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import toast, { Toaster } from 'react-hot-toast'
+import {
+  parseButtonsJson,
+  validateButtons,
+  type TemplateButton,
+  type ButtonType,
+  MAX_BUTTONS,
+  MAX_URL_BUTTONS,
+  MAX_PHONE_BUTTONS,
+  MAX_BUTTON_TEXT,
+} from '@/lib/wa-template-buttons'
+import { formatWhatsAppText } from '@/lib/wa-format'
 
 interface WATemplate {
   id: string
@@ -11,12 +22,26 @@ interface WATemplate {
   bodyEn: string
   bodyHi: string
   metaName?: string
+  headerType?: string
+  headerText?: string
+  headerMediaUrl?: string
+  footerText?: string
+  buttonsJson?: string | null
   isApproved: boolean
   isActive: boolean
   metaStatus?: string
   metaError?: string
   metaSubmittedAt?: string
   source?: 'new' | 'legacy'
+}
+
+type HeaderType = 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT'
+const HEADER_TYPES: HeaderType[] = ['NONE', 'TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT']
+const BUTTON_TYPES: ButtonType[] = ['QUICK_REPLY', 'URL', 'PHONE_NUMBER']
+const BUTTON_TYPE_LABELS: Record<ButtonType, string> = {
+  QUICK_REPLY: 'Quick Reply',
+  URL: 'Visit URL',
+  PHONE_NUMBER: 'Call Phone',
 }
 
 interface LegacyTemplate {
@@ -36,8 +61,22 @@ const CATEGORIES = [
   'AUTHENTICATION',
 ]
 
-function WhatsAppBubble({ text }: { text: string }) {
-  if (!text) return (
+function WhatsAppBubble({
+  text,
+  headerType = 'NONE',
+  headerText = '',
+  headerMediaReady = false,
+  footerText = '',
+  buttons = [],
+}: {
+  text: string
+  headerType?: string
+  headerText?: string
+  headerMediaReady?: boolean
+  footerText?: string
+  buttons?: TemplateButton[]
+}) {
+  if (!text && !headerText && !headerMediaReady && !footerText && !buttons.length) return (
     <div style={{
       backgroundColor: '#f0f0f0',
       borderRadius: '12px',
@@ -49,6 +88,13 @@ function WhatsAppBubble({ text }: { text: string }) {
       Preview will appear here as you type
     </div>
   )
+
+  const mediaPlaceholder = (() => {
+    if (headerType === 'IMAGE') return headerMediaReady ? '🖼️ Image' : '🖼️ Image will appear here'
+    if (headerType === 'VIDEO') return headerMediaReady ? '🎬 Video' : '🎬 Video will appear here'
+    if (headerType === 'DOCUMENT') return headerMediaReady ? '📄 Document' : '📄 PDF will appear here'
+    return ''
+  })()
 
   return (
     <div style={{
@@ -65,6 +111,30 @@ function WhatsAppBubble({ text }: { text: string }) {
         position: 'relative',
         boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
       }}>
+        {['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType) && (
+          <div style={{
+            backgroundColor: '#cce8b8',
+            borderRadius: '6px',
+            padding: '24px 12px',
+            textAlign: 'center',
+            color: '#3a6b21',
+            fontSize: '13px',
+            fontWeight: 500,
+            marginBottom: '8px',
+          }}>
+            {mediaPlaceholder}
+          </div>
+        )}
+        {headerType === 'TEXT' && headerText && (
+          <p style={{
+            fontSize: '14px',
+            color: '#111b21',
+            fontWeight: 700,
+            margin: '0 0 6px',
+          }}>
+            {headerText}
+          </p>
+        )}
         <p style={{
           fontSize: '13.5px',
           color: '#111b21',
@@ -73,14 +143,24 @@ function WhatsAppBubble({ text }: { text: string }) {
           margin: 0,
           fontFamily: '-apple-system, sans-serif',
         }}>
-          {text
-            .replace('{{1}}', 'रमेश कुमार')
-            .replace('{{2}}', 'बीकानेर')
-            .replace('{{3}}', '15 अप्रैल 2026')
-            .replace('{{4}}', 'सिटी हॉल, बीकानेर')
-            .replace('{{5}}', 'सुबह 10 बजे')
-          }
+          {formatWhatsAppText(
+            text
+              .replace('{{1}}', 'रमेश कुमार')
+              .replace('{{2}}', 'बीकानेर')
+              .replace('{{3}}', '15 अप्रैल 2026')
+              .replace('{{4}}', 'सिटी हॉल, बीकानेर')
+              .replace('{{5}}', 'सुबह 10 बजे')
+          )}
         </p>
+        {footerText && (
+          <p style={{
+            fontSize: '12px',
+            color: '#667781',
+            margin: '6px 0 0',
+          }}>
+            {footerText}
+          </p>
+        )}
         <p style={{
           fontSize: '11px',
           color: '#667781',
@@ -90,6 +170,54 @@ function WhatsAppBubble({ text }: { text: string }) {
           9:41 AM ✓✓
         </p>
       </div>
+
+      {/* Buttons rendered as WhatsApp does — Quick Replies as light chips
+          below the bubble, CTA (URL / Phone) as full-width tappable rows
+          with the appropriate icon. */}
+      {buttons.length > 0 && (
+        <div style={{
+          marginTop: '8px',
+          maxWidth: '85%',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '4px',
+        }}>
+          {buttons.map((b, i) => {
+            const baseRow: React.CSSProperties = {
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              padding: '10px 14px',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              color: '#1d4ed8',
+              fontSize: '13.5px',
+              fontWeight: 500,
+            }
+            if (b.type === 'URL') {
+              return (
+                <div key={i} style={baseRow}>
+                  <span>🔗</span><span>{b.text || 'Visit'}</span>
+                </div>
+              )
+            }
+            if (b.type === 'PHONE_NUMBER') {
+              return (
+                <div key={i} style={baseRow}>
+                  <span>📞</span><span>{b.text || 'Call'}</span>
+                </div>
+              )
+            }
+            return (
+              <div key={i} style={baseRow}>
+                {b.text || 'Quick Reply'}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -295,12 +423,9 @@ function TemplateForm({
   onSave: (data: Record<string, unknown>) => Promise<void>
   onCancel: () => void
 }) {
-  const [name, setName] = useState(
-    initial?.name || ''
-  )
-  const [nameHi, setNameHi] = useState(
-    initial?.nameHi || ''
-  )
+  // Template name field consolidated: only metaName is shown in the UI.
+  // The internal `name` / `nameHi` fields in the DB are derived from metaName
+  // on save (kept for backward-compat with existing rows + the listing view).
   const [category, setCategory] = useState(
     initial?.category || 'UTILITY'
   )
@@ -311,26 +436,150 @@ function TemplateForm({
     initial?.bodyEn || ''
   )
   const [metaName, setMetaName] = useState(
-    initial?.metaName || ''
+    initial?.metaName || initial?.name || ''
   )
+  const [headerType, setHeaderType] = useState<HeaderType>(
+    ((initial?.headerType as HeaderType) || 'NONE')
+  )
+  const [headerText, setHeaderText] = useState(
+    initial?.headerText || ''
+  )
+  const [headerMediaUrl, setHeaderMediaUrl] = useState(
+    initial?.headerMediaUrl || ''
+  )
+  const [headerFileName, setHeaderFileName] = useState('')
+  const [uploadingMedia, setUploadingMedia] = useState(false)
+  const [footerText, setFooterText] = useState(
+    initial?.footerText || ''
+  )
+  const [buttons, setButtons] = useState<TemplateButton[]>(
+    parseButtonsJson(initial?.buttonsJson)
+  )
+  const [skipMetaSubmit, setSkipMetaSubmit] = useState(false)
   const [isApproved, setIsApproved] = useState(
     initial?.isApproved || false
   )
   const [saving, setSaving] = useState(false)
+  const bodyTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+  // Counters used by the Add-button row to grey out types that hit a per-type
+  // limit. Keeps the UI honest with what the API will accept.
+  const urlButtonCount = buttons.filter(b => b.type === 'URL').length
+  const phoneButtonCount = buttons.filter(b => b.type === 'PHONE_NUMBER').length
+  const canAddMoreButtons = buttons.length < MAX_BUTTONS
+
+  const addButton = (type: ButtonType) => {
+    if (!canAddMoreButtons) return
+    if (type === 'URL' && urlButtonCount >= MAX_URL_BUTTONS) return
+    if (type === 'PHONE_NUMBER' && phoneButtonCount >= MAX_PHONE_BUTTONS) return
+    setButtons([...buttons, { type, text: '' }])
+  }
+
+  const updateButton = (i: number, patch: Partial<TemplateButton>) => {
+    setButtons(buttons.map((b, idx) => idx === i ? { ...b, ...patch } : b))
+  }
+
+  const removeButton = (i: number) => {
+    setButtons(buttons.filter((_, idx) => idx !== i))
+  }
+
+  // Wraps the current textarea selection with WhatsApp markdown markers.
+  // If nothing is selected we insert the marker pair and place the caret
+  // between them so the user can start typing right away.
+  const wrapBodySelection = (marker: string) => {
+    const ta = bodyTextareaRef.current
+    if (!ta) return
+    const start = ta.selectionStart ?? 0
+    const end = ta.selectionEnd ?? 0
+    const value = language === 'hi' ? bodyHi : bodyEn
+    const before = value.slice(0, start)
+    const selected = value.slice(start, end)
+    const after = value.slice(end)
+    const inner = selected || 'text'
+    const next = `${before}${marker}${inner}${marker}${after}`
+    if (language === 'hi') setBodyHi(next); else setBodyEn(next)
+    // Restore selection so the user sees the result wrapped
+    requestAnimationFrame(() => {
+      ta.focus()
+      const newStart = start + marker.length
+      const newEnd = newStart + inner.length
+      ta.setSelectionRange(newStart, newEnd)
+    })
+  }
+
+  const acceptForType = (t: HeaderType) =>
+    t === 'IMAGE' ? 'image/jpeg,image/png'
+      : t === 'VIDEO' ? 'video/mp4,video/3gpp'
+        : t === 'DOCUMENT' ? 'application/pdf'
+          : ''
+
+  const handleMediaUpload = async (file: File) => {
+    if (!['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType)) return
+    setUploadingMedia(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('format', headerType)
+      const res = await fetch('/api/wa-templates/media', {
+        method: 'POST',
+        body: fd,
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || 'Upload failed')
+        return
+      }
+      setHeaderMediaUrl(data.handle)
+      setHeaderFileName(file.name)
+      toast.success('Media uploaded — ready to submit')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Upload failed'
+      toast.error(msg)
+    } finally {
+      setUploadingMedia(false)
+    }
+  }
 
   const previewText = language === 'hi'
     ? bodyHi : bodyEn
 
+  const headerNeedsMedia =
+    ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType) && !headerMediaUrl
+  const headerNeedsText = headerType === 'TEXT' && !headerText.trim()
+  const buttonsCheck = validateButtons(buttons)
+  const canSave =
+    !!metaName.trim() &&
+    !headerNeedsMedia &&
+    !headerNeedsText &&
+    !uploadingMedia &&
+    buttonsCheck.ok
+
   const handleSave = async () => {
     setSaving(true)
+    // Derive a human-friendly display name from the snake_case metaName for
+    // the listing view (e.g. "opd_camp_hi" → "OPD Camp Hi"). DB still stores
+    // both fields.
+    const displayName = metaName
+      .split('_')
+      .map(w => w ? w[0].toUpperCase() + w.slice(1) : w)
+      .join(' ')
+      .trim()
     await onSave({
-      name,
-      nameHi,
+      name: displayName || metaName,
+      nameHi: null,
       category,
       language,
       bodyHi,
       bodyEn,
       metaName,
+      headerType,
+      headerText: headerType === 'TEXT' ? headerText : '',
+      headerMediaUrl:
+        ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType)
+          ? headerMediaUrl : '',
+      footerText,
+      buttons,
+      skipMetaSubmit,
       isApproved,
       isActive: true,
     })
@@ -389,29 +638,33 @@ function TemplateForm({
         }}>
           <div>
             <label style={labelStyle}>
-              Template name (English)
+              Template name{' '}
+              <span style={{
+                color: '#94a3b8',
+                fontWeight: '400',
+                textTransform: 'none',
+                letterSpacing: '0',
+                marginLeft: '6px',
+              }}>
+                (lowercase, underscores, submitted to Meta)
+              </span>
             </label>
             <input
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="e.g. OPD Camp Announcement"
-              style={inputStyle}
+              value={metaName}
+              onChange={e => setMetaName(
+                // Sanitize live: Meta only accepts [a-z0-9_]
+                e.target.value
+                  .toLowerCase()
+                  .replace(/[^a-z0-9_\s]/g, '')
+                  .replace(/\s+/g, '_')
+              )}
+              placeholder="e.g. opd_camp_hi"
+              style={{
+                ...inputStyle,
+                fontFamily: 'monospace',
+              }}
             />
           </div>
-
-          {language === 'hi' && (
-            <div>
-              <label style={labelStyle}>
-                Template name (Hindi)
-              </label>
-              <input
-                value={nameHi}
-                onChange={e => setNameHi(e.target.value)}
-                placeholder="e.g. OPD कैंप सूचना"
-                style={inputStyle}
-              />
-            </div>
-          )}
 
           <div>
             <label style={labelStyle}>Category</label>
@@ -431,28 +684,86 @@ function TemplateForm({
             </select>
           </div>
 
+          {/* Header section */}
           <div>
-            <label style={labelStyle}>
-              Meta template name{' '}
-              <span style={{
-                color: '#94a3b8',
-                fontWeight: '400',
-                textTransform: 'none',
-                letterSpacing: '0',
-                marginLeft: '6px',
-              }}>
-                (API name submitted to Meta)
-              </span>
-            </label>
-            <input
-              value={metaName}
-              onChange={e => setMetaName(e.target.value)}
-              placeholder="e.g. opd_camp_hi"
-              style={{
-                ...inputStyle,
-                fontFamily: 'monospace',
+            <label style={labelStyle}>Header (optional)</label>
+            <select
+              value={headerType}
+              onChange={e => {
+                const next = e.target.value as HeaderType
+                setHeaderType(next)
+                if (next === 'NONE' || next === 'TEXT') {
+                  setHeaderMediaUrl('')
+                  setHeaderFileName('')
+                }
+                if (next !== 'TEXT') setHeaderText('')
               }}
-            />
+              style={{ ...inputStyle, cursor: 'pointer' }}
+            >
+              {HEADER_TYPES.map(t => (
+                <option key={t} value={t}>
+                  {t === 'NONE' ? 'No header' : t}
+                </option>
+              ))}
+            </select>
+
+            {headerType === 'TEXT' && (
+              <input
+                value={headerText}
+                onChange={e => setHeaderText(e.target.value)}
+                maxLength={60}
+                placeholder="Header text (max 60 chars)"
+                style={{ ...inputStyle, marginTop: '8px' }}
+              />
+            )}
+
+            {['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType) && (
+              <div style={{ marginTop: '8px' }}>
+                <input
+                  type="file"
+                  accept={acceptForType(headerType)}
+                  onChange={e => {
+                    const f = e.target.files?.[0]
+                    if (f) handleMediaUpload(f)
+                  }}
+                  disabled={uploadingMedia}
+                  style={{
+                    width: '100%',
+                    fontSize: '13px',
+                    padding: '8px 0',
+                    color: '#475569',
+                  }}
+                />
+                <p style={{
+                  fontSize: '11px',
+                  color: '#94a3b8',
+                  marginTop: '4px',
+                }}>
+                  {headerType === 'IMAGE' && 'JPG or PNG, max 5 MB'}
+                  {headerType === 'VIDEO' && 'MP4 or 3GPP, max 16 MB'}
+                  {headerType === 'DOCUMENT' && 'PDF, max 100 MB'}
+                </p>
+                {uploadingMedia && (
+                  <p style={{
+                    fontSize: '12px',
+                    color: '#2563eb',
+                    marginTop: '6px',
+                  }}>
+                    Uploading to Meta…
+                  </p>
+                )}
+                {headerMediaUrl && !uploadingMedia && (
+                  <p style={{
+                    fontSize: '12px',
+                    color: '#16a34a',
+                    marginTop: '6px',
+                  }}>
+                    ✓ Uploaded
+                    {headerFileName ? ` — ${headerFileName}` : ''}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
@@ -461,7 +772,48 @@ function TemplateForm({
                 ? 'Message body (Hindi 🇮🇳)'
                 : 'Message body (English 🇬🇧)'}
             </label>
+
+            {/* Formatting toolbar — wraps the textarea selection with
+                WhatsApp markdown so users don't have to type the markers
+                manually. Same as Wati / AISensy / DoubleTick. */}
+            <div style={{
+              display: 'flex',
+              gap: '4px',
+              marginBottom: '6px',
+            }}>
+              {[
+                { label: 'B', marker: '*', title: 'Bold (*text*)', weight: 700 },
+                { label: 'I', marker: '_', title: 'Italic (_text_)', style: 'italic' },
+                { label: 'S', marker: '~', title: 'Strikethrough (~text~)', deco: 'line-through' },
+                { label: '</>', marker: '```', title: 'Monospace (```text```)', mono: true },
+              ].map(b => (
+                <button
+                  key={b.label}
+                  type="button"
+                  onClick={() => wrapBodySelection(b.marker)}
+                  title={b.title}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid #e2e8f0',
+                    backgroundColor: 'white',
+                    fontSize: '13px',
+                    fontWeight: b.weight || 500,
+                    fontStyle: b.style || 'normal',
+                    textDecoration: b.deco || 'none',
+                    fontFamily: b.mono ? 'monospace' : 'inherit',
+                    color: '#374151',
+                    cursor: 'pointer',
+                    minWidth: '36px',
+                  }}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+
             <textarea
+              ref={bodyTextareaRef}
               value={language === 'hi' ? bodyHi : bodyEn}
               onChange={e => {
                 if (language === 'hi') {
@@ -485,8 +837,217 @@ function TemplateForm({
               color: '#94a3b8',
               marginTop: '4px',
             }}>
-              Use {'{{1}}'} {'{{2}}'} {'{{3}}'} for dynamic variables
+              Use {'{{1}}'} {'{{2}}'} {'{{3}}'} for dynamic variables.
+              Format with *bold*, _italic_, ~strike~, ```mono```.
             </p>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Footer (optional)</label>
+            <input
+              value={footerText}
+              onChange={e => setFooterText(e.target.value)}
+              maxLength={60}
+              placeholder="e.g. Dr. Dheeraj Dubay Clinic"
+              style={inputStyle}
+            />
+          </div>
+
+          {/* Buttons section — Quick Reply / URL / Phone, up to 10 total
+              with per-type caps (max 2 URL, max 1 phone). The shape we
+              store in DB matches what extractButtonsJson() saves when
+              syncing from Meta, so the send pipeline is unchanged. */}
+          <div>
+            <label style={labelStyle}>
+              Buttons (optional)
+              <span style={{
+                color: '#94a3b8',
+                fontWeight: '400',
+                textTransform: 'none',
+                letterSpacing: '0',
+                marginLeft: '8px',
+              }}>
+                {buttons.length} / {MAX_BUTTONS} used
+              </span>
+            </label>
+
+            {buttons.length > 0 && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                marginBottom: '8px',
+              }}>
+                {buttons.map((btn, i) => {
+                  const isOverText = btn.text.length > MAX_BUTTON_TEXT
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'flex',
+                        gap: '6px',
+                        alignItems: 'stretch',
+                        padding: '8px',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        backgroundColor: '#f8fafc',
+                      }}
+                    >
+                      <select
+                        value={btn.type}
+                        onChange={e => updateButton(i, {
+                          type: e.target.value as ButtonType,
+                          // Clear the irrelevant field so the DB row stays clean
+                          url: undefined,
+                          phone_number: undefined,
+                        })}
+                        style={{
+                          ...inputStyle,
+                          width: '140px',
+                          cursor: 'pointer',
+                          padding: '8px 10px',
+                          fontSize: '13px',
+                        }}
+                      >
+                        {BUTTON_TYPES.map(t => (
+                          <option key={t} value={t}>{BUTTON_TYPE_LABELS[t]}</option>
+                        ))}
+                      </select>
+
+                      <input
+                        value={btn.text}
+                        onChange={e => updateButton(i, { text: e.target.value })}
+                        maxLength={MAX_BUTTON_TEXT}
+                        placeholder={`Button text (${MAX_BUTTON_TEXT} max)`}
+                        style={{
+                          ...inputStyle,
+                          flex: 1,
+                          padding: '8px 10px',
+                          fontSize: '13px',
+                          borderColor: isOverText ? '#dc2626' : '#e2e8f0',
+                        }}
+                      />
+
+                      {btn.type === 'URL' && (
+                        <input
+                          value={btn.url || ''}
+                          onChange={e => updateButton(i, { url: e.target.value })}
+                          placeholder="https://..."
+                          style={{
+                            ...inputStyle,
+                            flex: 1.5,
+                            padding: '8px 10px',
+                            fontSize: '13px',
+                            fontFamily: 'monospace',
+                          }}
+                        />
+                      )}
+                      {btn.type === 'PHONE_NUMBER' && (
+                        <input
+                          value={btn.phone_number || ''}
+                          onChange={e => updateButton(i, { phone_number: e.target.value })}
+                          placeholder="+918955373205"
+                          style={{
+                            ...inputStyle,
+                            flex: 1.5,
+                            padding: '8px 10px',
+                            fontSize: '13px',
+                            fontFamily: 'monospace',
+                          }}
+                        />
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => removeButton(i)}
+                        aria-label="Remove button"
+                        style={{
+                          padding: '0 12px',
+                          backgroundColor: '#fef2f2',
+                          color: '#dc2626',
+                          border: '1px solid #fecaca',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {BUTTON_TYPES.map(t => {
+                const disabled =
+                  !canAddMoreButtons ||
+                  (t === 'URL' && urlButtonCount >= MAX_URL_BUTTONS) ||
+                  (t === 'PHONE_NUMBER' && phoneButtonCount >= MAX_PHONE_BUTTONS)
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => addButton(t)}
+                    disabled={disabled}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      border: '1px dashed #cbd5e1',
+                      backgroundColor: disabled ? '#f1f5f9' : 'white',
+                      color: disabled ? '#94a3b8' : '#1e40af',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      cursor: disabled ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    + {BUTTON_TYPE_LABELS[t]}
+                  </button>
+                )
+              })}
+            </div>
+
+            <p style={{
+              fontSize: '11px',
+              color: '#94a3b8',
+              marginTop: '6px',
+            }}>
+              Max {MAX_BUTTONS} buttons. Up to {MAX_URL_BUTTONS} URL,
+              {' '}{MAX_PHONE_BUTTONS} phone. Quick replies invite users to
+              tap a pre-defined reply.
+            </p>
+            {!buttonsCheck.ok && (
+              <p style={{
+                fontSize: '12px',
+                color: '#dc2626',
+                marginTop: '4px',
+              }}>
+                {buttonsCheck.error}
+              </p>
+            )}
+          </div>
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}>
+            <input
+              type="checkbox"
+              id="skip-meta"
+              checked={skipMetaSubmit}
+              onChange={e => setSkipMetaSubmit(e.target.checked)}
+              style={{ width: '16px', height: '16px' }}
+            />
+            <label htmlFor="skip-meta" style={{
+              fontSize: '13px',
+              color: '#374151',
+              cursor: 'pointer',
+            }}>
+              Save as draft (don&apos;t submit to Meta yet)
+            </label>
           </div>
 
           <div style={{
@@ -516,7 +1077,14 @@ function TemplateForm({
           <label style={labelStyle}>
             Live preview
           </label>
-          <WhatsAppBubble text={previewText} />
+          <WhatsAppBubble
+            text={previewText}
+            headerType={headerType}
+            headerText={headerText}
+            headerMediaReady={!!headerMediaUrl}
+            footerText={footerText}
+            buttons={buttons}
+          />
           <div style={{
             marginTop: '12px',
             padding: '10px 14px',
@@ -547,16 +1115,16 @@ function TemplateForm({
       }}>
         <button
           onClick={handleSave}
-          disabled={saving || !name.trim()}
+          disabled={saving || !canSave}
           style={{
             padding: '10px 28px',
-            backgroundColor: saving ? '#93c5fd' : '#2563eb',
+            backgroundColor: (saving || !canSave) ? '#93c5fd' : '#2563eb',
             color: 'white',
             border: 'none',
             borderRadius: '8px',
             fontSize: '14px',
             fontWeight: '600',
-            cursor: saving ? 'not-allowed' : 'pointer',
+            cursor: (saving || !canSave) ? 'not-allowed' : 'pointer',
           }}
         >
           {saving ? 'Saving...' : 'Save template'}

@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import {
+  validateButtons,
+  serializeButtons,
+  type TemplateButton,
+} from '@/lib/wa-template-buttons'
 export const dynamic = 'force-dynamic'
 
 export async function PUT(
@@ -8,20 +13,42 @@ export async function PUT(
 ) {
   try {
     const body = await req.json()
+
+    // Buttons: only update buttonsJson when the client explicitly sent the
+    // `buttons` field. If it's undefined we leave the existing column alone
+    // — important for backward-compat with any older clients that don't
+    // know about buttons yet (they'd accidentally wipe buttons otherwise).
+    const data: Record<string, unknown> = {
+      name: body.name,
+      nameHi: body.nameHi,
+      category: body.category,
+      language: body.language,
+      bodyHi: body.bodyHi,
+      bodyEn: body.bodyEn,
+      metaName: body.metaName,
+      headerType: (body.headerType || 'NONE').toUpperCase(),
+      headerText: body.headerText?.trim() || null,
+      headerMediaUrl: body.headerMediaUrl?.trim() || null,
+      footerText: body.footerText?.trim() || null,
+      isApproved: body.isApproved,
+      isActive: body.isActive ?? true,
+      updatedAt: new Date(),
+    }
+
+    if (body.buttons !== undefined) {
+      const incoming: TemplateButton[] = Array.isArray(body.buttons)
+        ? body.buttons
+        : []
+      const check = validateButtons(incoming)
+      if (!check.ok) {
+        return NextResponse.json({ error: check.error }, { status: 400 })
+      }
+      data.buttonsJson = incoming.length ? serializeButtons(incoming) : null
+    }
+
     const updated = await db.whatsAppTemplate.update({
       where: { id: params.id },
-      data: {
-        name: body.name,
-        nameHi: body.nameHi,
-        category: body.category,
-        language: body.language,
-        bodyHi: body.bodyHi,
-        bodyEn: body.bodyEn,
-        metaName: body.metaName,
-        isApproved: body.isApproved,
-        isActive: body.isActive ?? true,
-        updatedAt: new Date(),
-      },
+      data,
     })
     return NextResponse.json(updated)
   } catch (e: unknown) {
