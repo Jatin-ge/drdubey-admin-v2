@@ -63,23 +63,29 @@ export async function POST(req: Request) {
 
     const headerType = (body.headerType || 'NONE').toUpperCase()
     if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType)) {
-      const mediaUrl = body.headerMediaUrl?.trim()
-      if (!mediaUrl) {
+      // For media templates we need TWO things from the upload route:
+      //   - headerMediaUrl   = Meta resumable handle (for template create)
+      //   - headerMediaSendUrl = public HTTPS URL    (for message send)
+      const handle = body.headerMediaUrl?.trim()
+      const sendUrl = body.headerMediaSendUrl?.trim()
+      if (!handle) {
         return NextResponse.json(
-          { error: `Header type ${headerType} requires a public media URL` },
+          { error: `Header type ${headerType} requires a Meta resumable handle (re-upload the file)` },
           { status: 400 }
         )
       }
-      // Reject resumable handles + Meta-internal CDN URLs — neither work
-      // when Meta tries to fetch the media at send time. The user must
-      // provide a URL we control or any public host.
-      if (!isSendableMediaUrl(mediaUrl)) {
+      if (!sendUrl) {
+        return NextResponse.json(
+          { error: `Header type ${headerType} requires a public send URL (re-upload the file)` },
+          { status: 400 }
+        )
+      }
+      if (!isSendableMediaUrl(sendUrl)) {
         return NextResponse.json(
           {
             error:
-              `Media URL must be a public HTTPS URL on a non-Meta host ` +
-              `(scontent.whatsapp.net / fbcdn / lookaside are rejected). ` +
-              `Got: ${mediaUrl.slice(0, 80)}`,
+              `headerMediaSendUrl must be a public HTTPS URL on a non-Meta host. ` +
+              `Got: ${sendUrl.slice(0, 80)}`,
           },
           { status: 400 }
         )

@@ -1,20 +1,30 @@
 import { NextResponse } from 'next/server'
 import { put } from '@vercel/blob'
+import { whatsappApi } from '@/lib/whatsapp-api'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-// Vercel Blob upload for WhatsApp template header media.
+// Dual-destination upload for WhatsApp template header media.
 //
-// Why Vercel Blob:
-// - Free tier covers our usage (1 GB storage, 50 GB egress / month).
-// - Single env var (BLOB_READ_WRITE_TOKEN) auto-provisioned when the
-//   Blob store is connected in the Vercel dashboard.
-// - put() returns a public URL directly — no proxy route needed.
-// - Files served from a public CDN domain Meta can fetch.
+// Meta's WhatsApp Cloud API requires TWO different things for media
+// templates that we have to support simultaneously:
 //
-// Limits match Meta's WhatsApp Cloud API send-time limits.
+// 1. For template CREATION it needs an `example.header_handle` value
+//    which must be a "resumable upload handle" (like "4::aW1...") —
+//    a URL is silently rejected with the unhelpful error
+//    "Missing sample parameter for title type". The handle is
+//    obtained by uploading the file to /APP_ID/uploads in Meta's
+//    Graph API.
+//
+// 2. For message SENDING it needs a publicly-fetchable HTTPS URL in
+//    the `link` field — the handle from (1) doesn't work here.
+//
+// We do both uploads in parallel so the team only has to pick the
+// file once. The handle goes into headerMediaUrl (used by
+// buildMetaComponents at template-creation time). The Blob URL goes
+// into headerMediaSendUrl (used by resolveSendMediaUrl at send time).
 const ALLOWED = {
   IMAGE:    { types: ['image/jpeg', 'image/png'],                      max: 5 * 1024 * 1024 },
   VIDEO:    { types: ['video/mp4', 'video/3gpp'],                      max: 16 * 1024 * 1024 },
@@ -67,17 +77,32 @@ export async function POST(req: Request) {
           'Storage → Create → Blob → connect to this project, then redeploy.',
       }, { status: 500 })
     }
+    if (!process.env.WHATSAPP_APP_ID) {
+      return NextResponse.json({
+        error: 'WHATSAPP_APP_ID env var missing — required by Meta resumable upload for template creation',
+      }, { status: 500 })
+    }
 
     const key = `wa-headers/${Date.now()}-${sanitizeName(file.name)}`
-    const blob = await put(key, file, {
-      access: 'public',
-      contentType: file.type,
-      // Random suffix off — we already prefix the timestamp ourselves,
-      // and a deterministic path is easier to debug.
-      addRandomSuffix: false,
-    })
 
-    return NextResponse.json({ url: blob.url, key, size: file.size })
+    // Run both uploads in parallel. If Meta's resumable upload fails the
+    // user still gets a clear error before the template create flow even
+    // starts — better than failing during the auto-submit step.
+    const [blob, handle] = await Promise.all([
+      put(key, file, {
+        access: 'public',
+        contentType: file.type,
+        addRandomSuffix: false,
+      }),
+      whatsappApi.uploadResumable(file, file.type),
+    ])
+
+    return NextResponse.json({
+      url: blob.url,        // public URL for sending
+      handle,               // Meta resumable handle for template creation
+      key,
+      size: file.size,
+    })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Upload failed'
     console.error('[WA_TEMPLATE_MEDIA_UPLOAD]', e)

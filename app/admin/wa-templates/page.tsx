@@ -463,6 +463,13 @@ function TemplateForm({
       ? initial.headerMediaUrl
       : '')
   const [mediaUrl, setMediaUrl] = useState(initialUrl || '')
+  // Meta resumable handle — stored separately because Meta's template
+  // creation rejects URLs and only accepts handles in example.header_handle.
+  // The user never sees this; it's a hidden side-effect of file upload.
+  const [mediaHandle, setMediaHandle] = useState(
+    (initial?.headerMediaUrl && !initial.headerMediaUrl.startsWith('http'))
+      ? initial.headerMediaUrl : ''
+  )
   const [uploading, setUploading] = useState(false)
   const [uploadPct, setUploadPct] = useState(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -559,10 +566,11 @@ function TemplateForm({
     }
     xhr.onload = () => {
       setUploading(false)
-      let body: { url?: string; error?: string } = {}
+      let body: { url?: string; handle?: string; error?: string } = {}
       try { body = JSON.parse(xhr.responseText) } catch {}
-      if (xhr.status === 200 && body.url) {
+      if (xhr.status === 200 && body.url && body.handle) {
         setMediaUrl(body.url)
+        setMediaHandle(body.handle)
         toast.success(`✓ Uploaded — ${file.name}`, {
           id: 'media-up', duration: 4000,
         })
@@ -579,19 +587,23 @@ function TemplateForm({
   const previewText = language === 'hi'
     ? bodyHi : bodyEn
 
-  // Validation for the media URL. Required when header type is media-
-  // capable, and must be a publicly-fetchable HTTPS URL (not a Meta
-  // CDN preview URL — those don't work at send time).
+  // Validation for the media header. We require BOTH a public URL
+  // (for sending) and a Meta resumable handle (for template creation).
+  // Both come from a single file upload — the user only sees the URL,
+  // but if there's no handle the template create call will be rejected.
   const isMediaHeader = ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType)
   const mediaUrlTrimmed = mediaUrl.trim()
+  const mediaHandleTrimmed = mediaHandle.trim()
   let mediaUrlError: string | null = null
   if (isMediaHeader) {
     if (!mediaUrlTrimmed) {
-      mediaUrlError = 'Media URL is required for this header type'
+      mediaUrlError = 'Upload a file for this header type'
     } else if (!/^https:\/\//i.test(mediaUrlTrimmed)) {
       mediaUrlError = 'Must start with https://'
     } else if (/(?:scontent\.whatsapp|fbcdn|lookaside\.fbsbx)/.test(mediaUrlTrimmed)) {
-      mediaUrlError = 'Cannot use a Meta-hosted preview URL — host the file yourself and paste that URL'
+      mediaUrlError = 'Cannot use a Meta-hosted preview URL — re-upload the file'
+    } else if (!mediaHandleTrimmed) {
+      mediaUrlError = 'Re-upload the file — missing Meta handle (needed for template creation)'
     } else {
       try { new URL(mediaUrlTrimmed) } catch { mediaUrlError = 'Not a valid URL' }
     }
@@ -626,10 +638,13 @@ function TemplateForm({
       headerType,
       headerText: headerType === 'TEXT' ? headerText : '',
       // Same URL used for BOTH template creation and message sending.
-      // We send it as headerMediaSendUrl (the send-side field) AND as
-      // headerMediaUrl so it lands in both DB columns — the resolver
-      // picks whichever is publicly fetchable.
-      headerMediaUrl: isMediaHeader ? mediaUrlTrimmed : '',
+      // headerMediaUrl holds the Meta resumable HANDLE used at template
+      // creation time (example.header_handle expects a handle, never a URL).
+      // headerMediaSendUrl holds the publicly-fetchable URL used at
+      // message-send time (Meta refuses to refetch its own CDN URLs).
+      // Both come from the same file upload — kept in separate columns
+      // because they have different shapes and lifecycle.
+      headerMediaUrl: isMediaHeader ? mediaHandleTrimmed : '',
       headerMediaSendUrl: isMediaHeader ? mediaUrlTrimmed : '',
       footerText,
       buttons,
@@ -752,7 +767,10 @@ function TemplateForm({
               onChange={e => {
                 const next = e.target.value as HeaderType
                 setHeaderType(next)
-                if (next === 'NONE' || next === 'TEXT') setMediaUrl('')
+                if (next === 'NONE' || next === 'TEXT') {
+                  setMediaUrl('')
+                  setMediaHandle('')
+                }
                 if (next !== 'TEXT') setHeaderText('')
               }}
               style={{ ...inputStyle, cursor: 'pointer' }}
@@ -833,13 +851,14 @@ function TemplateForm({
                   </span>
                 </button>
 
-                {/* Read-only-feeling URL box. Editable in case someone
-                    wants to paste a URL they already host elsewhere. */}
+                {/* Read-only URL preview — disabled because Meta template
+                    creation requires a resumable handle that's only
+                    produced by our upload route, not by pasting a URL. */}
                 <input
                   type="url"
                   value={mediaUrl}
-                  onChange={e => setMediaUrl(e.target.value)}
-                  placeholder="URL will appear here after upload — or paste your own"
+                  readOnly
+                  placeholder="Upload a file above — URL will appear here"
                   style={{
                     ...inputStyle,
                     marginTop: '8px',
@@ -848,7 +867,8 @@ function TemplateForm({
                     padding: '8px 10px',
                     borderColor: mediaUrlError ? '#dc2626'
                       : mediaUrl ? '#16a34a' : '#e2e8f0',
-                    backgroundColor: mediaUrl && !mediaUrlError ? '#f0fdf4' : 'white',
+                    backgroundColor: mediaUrl && !mediaUrlError ? '#f0fdf4' : '#f8fafc',
+                    color: '#64748b',
                   }}
                 />
 
