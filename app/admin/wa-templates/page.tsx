@@ -445,14 +445,24 @@ function TemplateForm({
   const [headerText, setHeaderText] = useState(
     initial?.headerText || ''
   )
-  const [headerMediaUrl, setHeaderMediaUrl] = useState(
-    initial?.headerMediaUrl || ''
-  )
-  const [headerMediaSendUrl, setHeaderMediaSendUrl] = useState(
-    initial?.headerMediaSendUrl || ''
-  )
-  const [headerFileName, setHeaderFileName] = useState('')
-  const [uploadingMedia, setUploadingMedia] = useState(false)
+  // Single field for the media URL. Used both when registering the
+  // template with Meta AND when sending messages. Meta accepts a public
+  // HTTPS URL in `example.header_handle` (it downloads + caches it once
+  // at template-creation time). The same URL is then used as `link` at
+  // send time. This is much simpler than maintaining a separate
+  // resumable-upload handle that doesn't work for sending.
+  //
+  // If user has an existing template synced from Meta where headerMediaUrl
+  // points at scontent.whatsapp.net or to a resumable handle, prefer the
+  // send URL field — but if they're editing they can paste a new public
+  // URL in and it'll take over.
+  const initialUrl =
+    (initial?.headerMediaSendUrl && initial.headerMediaSendUrl) ||
+    (initial?.headerMediaUrl && initial.headerMediaUrl.startsWith('http') &&
+      !/(?:scontent\.whatsapp|fbcdn|lookaside\.fbsbx)/.test(initial.headerMediaUrl)
+      ? initial.headerMediaUrl
+      : '')
+  const [mediaUrl, setMediaUrl] = useState(initialUrl || '')
   const [footerText, setFooterText] = useState(
     initial?.footerText || ''
   )
@@ -511,51 +521,33 @@ function TemplateForm({
     })
   }
 
-  const acceptForType = (t: HeaderType) =>
-    t === 'IMAGE' ? 'image/jpeg,image/png'
-      : t === 'VIDEO' ? 'video/mp4,video/3gpp'
-        : t === 'DOCUMENT' ? 'application/pdf'
-          : ''
-
-  const handleMediaUpload = async (file: File) => {
-    if (!['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType)) return
-    setUploadingMedia(true)
-    try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('format', headerType)
-      const res = await fetch('/api/wa-templates/media', {
-        method: 'POST',
-        body: fd,
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        toast.error(data.error || 'Upload failed')
-        return
-      }
-      setHeaderMediaUrl(data.handle)
-      setHeaderFileName(file.name)
-      toast.success('Media uploaded — ready to submit')
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Upload failed'
-      toast.error(msg)
-    } finally {
-      setUploadingMedia(false)
-    }
-  }
-
   const previewText = language === 'hi'
     ? bodyHi : bodyEn
 
-  const headerNeedsMedia =
-    ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType) && !headerMediaUrl
+  // Validation for the media URL. Required when header type is media-
+  // capable, and must be a publicly-fetchable HTTPS URL (not a Meta
+  // CDN preview URL — those don't work at send time).
+  const isMediaHeader = ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType)
+  const mediaUrlTrimmed = mediaUrl.trim()
+  let mediaUrlError: string | null = null
+  if (isMediaHeader) {
+    if (!mediaUrlTrimmed) {
+      mediaUrlError = 'Media URL is required for this header type'
+    } else if (!/^https:\/\//i.test(mediaUrlTrimmed)) {
+      mediaUrlError = 'Must start with https://'
+    } else if (/(?:scontent\.whatsapp|fbcdn|lookaside\.fbsbx)/.test(mediaUrlTrimmed)) {
+      mediaUrlError = 'Cannot use a Meta-hosted preview URL — host the file yourself and paste that URL'
+    } else {
+      try { new URL(mediaUrlTrimmed) } catch { mediaUrlError = 'Not a valid URL' }
+    }
+  }
+
   const headerNeedsText = headerType === 'TEXT' && !headerText.trim()
   const buttonsCheck = validateButtons(buttons)
   const canSave =
     !!metaName.trim() &&
-    !headerNeedsMedia &&
+    !mediaUrlError &&
     !headerNeedsText &&
-    !uploadingMedia &&
     buttonsCheck.ok
 
   const handleSave = async () => {
@@ -578,12 +570,12 @@ function TemplateForm({
       metaName,
       headerType,
       headerText: headerType === 'TEXT' ? headerText : '',
-      headerMediaUrl:
-        ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType)
-          ? headerMediaUrl : '',
-      headerMediaSendUrl:
-        ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType)
-          ? headerMediaSendUrl : '',
+      // Same URL used for BOTH template creation and message sending.
+      // We send it as headerMediaSendUrl (the send-side field) AND as
+      // headerMediaUrl so it lands in both DB columns — the resolver
+      // picks whichever is publicly fetchable.
+      headerMediaUrl: isMediaHeader ? mediaUrlTrimmed : '',
+      headerMediaSendUrl: isMediaHeader ? mediaUrlTrimmed : '',
       footerText,
       buttons,
       skipMetaSubmit,
@@ -691,7 +683,13 @@ function TemplateForm({
             </select>
           </div>
 
-          {/* Header section */}
+          {/* Header section — two clear modes:
+              1. "No header" or "TEXT": send a text-only template
+              2. "IMAGE/VIDEO/DOCUMENT": paste a public HTTPS URL — same
+                 URL is used both when registering the template with Meta
+                 AND when sending messages, so what you preview is what
+                 the recipient gets. No file upload, no Meta resumable
+                 handles — just one URL.  */}
           <div>
             <label style={labelStyle}>Header (optional)</label>
             <select
@@ -699,17 +697,14 @@ function TemplateForm({
               onChange={e => {
                 const next = e.target.value as HeaderType
                 setHeaderType(next)
-                if (next === 'NONE' || next === 'TEXT') {
-                  setHeaderMediaUrl('')
-                  setHeaderFileName('')
-                }
+                if (next === 'NONE' || next === 'TEXT') setMediaUrl('')
                 if (next !== 'TEXT') setHeaderText('')
               }}
               style={{ ...inputStyle, cursor: 'pointer' }}
             >
               {HEADER_TYPES.map(t => (
                 <option key={t} value={t}>
-                  {t === 'NONE' ? 'No header' : t}
+                  {t === 'NONE' ? 'No header — text only' : t}
                 </option>
               ))}
             </select>
@@ -724,97 +719,55 @@ function TemplateForm({
               />
             )}
 
-            {['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType) && (
+            {isMediaHeader && (
               <div style={{ marginTop: '8px' }}>
                 <input
-                  type="file"
-                  accept={acceptForType(headerType)}
-                  onChange={e => {
-                    const f = e.target.files?.[0]
-                    if (f) handleMediaUpload(f)
-                  }}
-                  disabled={uploadingMedia}
+                  type="url"
+                  value={mediaUrl}
+                  onChange={e => setMediaUrl(e.target.value)}
+                  placeholder={
+                    headerType === 'IMAGE'
+                      ? 'https://admin.drdubay.in/images/wa-headers/poster.jpg'
+                      : headerType === 'VIDEO'
+                        ? 'https://admin.drdubay.in/media/clip.mp4'
+                        : 'https://admin.drdubay.in/media/leaflet.pdf'
+                  }
                   style={{
-                    width: '100%',
-                    fontSize: '13px',
-                    padding: '8px 0',
-                    color: '#475569',
+                    ...inputStyle,
+                    fontFamily: 'monospace',
+                    fontSize: '12px',
+                    padding: '8px 10px',
+                    borderColor: mediaUrlError ? '#dc2626' : '#e2e8f0',
                   }}
                 />
                 <p style={{
                   fontSize: '11px',
                   color: '#94a3b8',
-                  marginTop: '4px',
+                  marginTop: '6px',
+                  lineHeight: 1.4,
                 }}>
-                  {headerType === 'IMAGE' && 'JPG or PNG, max 5 MB'}
-                  {headerType === 'VIDEO' && 'MP4 or 3GPP, max 16 MB'}
-                  {headerType === 'DOCUMENT' && 'PDF, max 100 MB'}
+                  {headerType === 'IMAGE' && 'JPG or PNG, hosted at any public HTTPS URL.'}
+                  {headerType === 'VIDEO' && 'MP4 or 3GPP, hosted at any public HTTPS URL.'}
+                  {headerType === 'DOCUMENT' && 'PDF, hosted at any public HTTPS URL.'}
+                  {' '}You can also drop the file into{' '}
+                  <code style={{
+                    fontFamily: 'monospace',
+                    backgroundColor: '#f1f5f9',
+                    padding: '1px 4px',
+                    borderRadius: '3px',
+                  }}>public/images/wa-headers/</code>
+                  {' '}in this repo and reference it as
+                  {' '}<code style={{ fontFamily: 'monospace' }}>https://admin.drdubay.in/images/wa-headers/&lt;filename&gt;</code>.
                 </p>
-                {uploadingMedia && (
+                {mediaUrlError && (
                   <p style={{
                     fontSize: '12px',
-                    color: '#2563eb',
+                    color: '#dc2626',
                     marginTop: '6px',
                   }}>
-                    Uploading to Meta…
+                    {mediaUrlError}
                   </p>
                 )}
-                {headerMediaUrl && !uploadingMedia && (
-                  <p style={{
-                    fontSize: '12px',
-                    color: '#16a34a',
-                    marginTop: '6px',
-                  }}>
-                    ✓ Uploaded
-                    {headerFileName ? ` — ${headerFileName}` : ''}
-                  </p>
-                )}
-
-                {/* Public send URL — required for the message to actually
-                    arrive with the media attached. The resumable handle
-                    above is only used during template creation; Meta
-                    needs a publicly-fetchable URL when sending. */}
-                <div style={{ marginTop: '10px' }}>
-                  <label style={{
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    color: '#374151',
-                    marginBottom: '4px',
-                    display: 'block',
-                  }}>
-                    Public media URL{' '}
-                    <span style={{
-                      color: '#dc2626',
-                      fontWeight: '400',
-                      textTransform: 'none',
-                    }}>
-                      (required for sending the same image in messages)
-                    </span>
-                  </label>
-                  <input
-                    type="url"
-                    value={headerMediaSendUrl}
-                    onChange={e => setHeaderMediaSendUrl(e.target.value)}
-                    placeholder="https://admin.drdubay.in/images/wa-headers/poster.jpg"
-                    style={{
-                      ...inputStyle,
-                      fontFamily: 'monospace',
-                      fontSize: '12px',
-                      padding: '8px 10px',
-                    }}
-                  />
-                  <p style={{
-                    fontSize: '11px',
-                    color: '#94a3b8',
-                    marginTop: '4px',
-                    lineHeight: 1.4,
-                  }}>
-                    Paste any publicly-accessible HTTPS URL hosting the same
-                    file. Without this, messages will send WITHOUT the media
-                    header. You can host images under public/images/wa-headers/
-                    or use any image hosting service.
-                  </p>
-                </div>
               </div>
             )}
           </div>
@@ -1134,7 +1087,7 @@ function TemplateForm({
             text={previewText}
             headerType={headerType}
             headerText={headerText}
-            headerMediaReady={!!headerMediaUrl}
+            headerMediaReady={!!mediaUrlTrimmed && !mediaUrlError}
             footerText={footerText}
             buttons={buttons}
           />

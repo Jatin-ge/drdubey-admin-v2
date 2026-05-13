@@ -6,6 +6,7 @@ import {
   serializeButtons,
   type TemplateButton,
 } from '@/lib/wa-template-buttons'
+import { isSendableMediaUrl } from '@/lib/wa-media-url'
 export const dynamic = 'force-dynamic'
 
 const API_BASE = 'https://graph.facebook.com/v22.0'
@@ -61,18 +62,28 @@ export async function POST(req: Request) {
     }
 
     const headerType = (body.headerType || 'NONE').toUpperCase()
-    if (
-      ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType) &&
-      !body.headerMediaUrl?.trim()
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            `Header type ${headerType} requires headerMediaUrl ` +
-            `(upload via /api/wa-templates/media first)`,
-        },
-        { status: 400 }
-      )
+    if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType)) {
+      const mediaUrl = body.headerMediaUrl?.trim()
+      if (!mediaUrl) {
+        return NextResponse.json(
+          { error: `Header type ${headerType} requires a public media URL` },
+          { status: 400 }
+        )
+      }
+      // Reject resumable handles + Meta-internal CDN URLs — neither work
+      // when Meta tries to fetch the media at send time. The user must
+      // provide a URL we control or any public host.
+      if (!isSendableMediaUrl(mediaUrl)) {
+        return NextResponse.json(
+          {
+            error:
+              `Media URL must be a public HTTPS URL on a non-Meta host ` +
+              `(scontent.whatsapp.net / fbcdn / lookaside are rejected). ` +
+              `Got: ${mediaUrl.slice(0, 80)}`,
+          },
+          { status: 400 }
+        )
+      }
     }
     if (headerType === 'TEXT' && !body.headerText?.trim()) {
       return NextResponse.json(
