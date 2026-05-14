@@ -2,7 +2,14 @@ import { db } from './db'
 import { buildTemplatePayload } from './wa-template-payload'
 import { resolveSendMediaUrl } from './wa-media-url'
 
-const CHUNK_SIZE = 15
+// Chunk size is small on purpose. Vercel Hobby caps function execution at
+// 10 seconds. Each iteration in the for-loop below makes one Meta /messages
+// call (typically 700ms–2.5s, longer for marketing templates that get
+// throttled) plus a DB write. With CHUNK_SIZE = 4 a chunk runs in ~6–8s,
+// leaving headroom for the recursive self-fetch that chains the next chunk.
+// Previously this was 15, which silently 504'd on Vercel and killed the
+// chain — campaigns would stop at ~4 messages and never resume.
+const CHUNK_SIZE = 4
 
 export interface ProcessChunkResult {
   done: boolean
@@ -204,8 +211,11 @@ export async function processCampaignChunk(
       },
     })
 
-    // 100ms pause between sends — gentle on Meta rate limits.
-    await new Promise(r => setTimeout(r, 100))
+    // No artificial pause between sends. The Meta API call itself is the
+    // natural rate-limiter (each takes 700ms+), and the extra 100ms used
+    // to push the chunk over the 10s Vercel timeout when stacked across
+    // patients. Meta's documented throttle threshold (80 msg/sec / phone
+    // tier) is far above what a serial loop can produce.
   }
 
   const totals = await db.campaignLog.groupBy({
