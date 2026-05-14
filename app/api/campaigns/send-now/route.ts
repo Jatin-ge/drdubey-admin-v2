@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { processCampaignChunk } from '@/lib/process-campaign-chunk'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 10
@@ -56,37 +55,38 @@ export async function POST(req: Request) {
       },
     })
 
-    // Process the first chunk INLINE — no auth-blocked self-fetch. This is
-    // the core fix: previously we fired an HTTP self-call to send-chunk
-    // which was bounced by next-auth middleware, leaving every campaign
-    // stuck on SENDING with 0 sent.
-    const firstResult = await processCampaignChunk(campaign.id)
-
-    // If more patients remain after the first inline chunk, kick off the
-    // background continuation via the dedicated send-chunk route, which
-    // now accepts an internal-secret-authenticated call.
-    if (!firstResult.done) {
-      const secret = process.env.CAMPAIGN_INTERNAL_SECRET
-      if (secret) {
-        const base = getBaseUrl(req)
-        fetch(`${base}/api/campaigns/send-chunk`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${secret}`,
-          },
-          body: JSON.stringify({ campaignId: campaign.id }),
-        }).catch(() => {})
-        await new Promise(r => setTimeout(r, 500))
-      } else {
-        console.warn('[SEND_NOW] CAMPAIGN_INTERNAL_SECRET missing — campaign will stall after the first chunk')
-      }
+    // Fire off the first chunk via the dedicated send-chunk route — NOT
+    // inline. Each chunk processes up to 15 patients at ~1s/patient
+    // (Meta API + DB write), which can easily exceed this route's 10s
+    // Vercel-Hobby cap. Awaiting it inline used to surface a misleading
+    // "Failed to start campaign" alert even though the campaign was
+    // actually launching successfully — the response had just timed
+    // out while the work continued on the server.
+    //
+    // send-chunk is auth-whitelisted in middleware and validates the
+    // shared secret itself, so this self-fetch is safe and recursive
+    // chunks chain themselves until the campaign finishes.
+    const secret = process.env.CAMPAIGN_INTERNAL_SECRET
+    if (secret) {
+      const base = getBaseUrl(req)
+      fetch(`${base}/api/campaigns/send-chunk`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${secret}`,
+        },
+        body: JSON.stringify({ campaignId: campaign.id }),
+      }).catch(() => {})
+      // Tiny pause so the function host has time to flush the fetch
+      // before the Lambda freezes / shuts down.
+      await new Promise(r => setTimeout(r, 300))
+    } else {
+      console.warn('[SEND_NOW] CAMPAIGN_INTERNAL_SECRET missing — first chunk will not start')
     }
 
     return NextResponse.json({
       campaignId: campaign.id,
       patientCount: campaign.patientCount,
-      firstChunk: firstResult,
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error'
