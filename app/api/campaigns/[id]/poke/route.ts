@@ -55,9 +55,8 @@ export async function POST(
       'Authorization': `Bearer ${secret}`,
     },
     body: JSON.stringify({ campaignId: params.id }),
-    // @ts-expect-error - keepalive helps Node flush the request
     keepalive: true,
-  }).catch(() => {})
+  } as RequestInit).catch(() => {})
 
   // Short wait so the fetch leaves the host before this function returns.
   await new Promise(r => setTimeout(r, 500))
